@@ -1,0 +1,74 @@
+// scrolling_texture.effect
+
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: vs
+      frag: fs
+      properties:
+        mainTexture: { value: white }
+        scrollSpeed: { value: [0.1, 0.0], editor: { slide: true, range: [-2, 2], tooltip: "X and Y scrolling speed" } }
+}%
+
+// 頂點著色器
+CCProgram vs %{
+  precision highp float;
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec3 a_position;
+  in vec2 a_texCoord; // 原始 UV 座標
+
+  out vec2 v_uv;
+
+  // 從屬性中獲取滾動速度
+  uniform Constants {
+    vec2 scrollSpeed; 
+  };
+
+  void main () {
+    // 獲取當前時間
+    float time = cc_time.x; 
+    
+    // 計算偏移量：時間 * 速度
+    // 如果只需要左右滾動，只使用 scrollSpeed.x
+    vec2 offset = scrollSpeed * time;
+    
+    // 將偏移量加到原始 UV 上
+    // 小數部分（fract）用於確保偏移值保持在 0.0 到 1.0 之間
+    // 但因為我們使用了 Repeat 模式，這裡直接加也是可以的，只是為了數值穩定
+    v_uv = a_texCoord + offset; 
+    
+    // 標準的頂點轉換
+    vec4 pos = cc_matViewProj * cc_matWorld * vec4(a_position, 1);
+    
+    gl_Position = pos;
+  }
+}%
+
+// 片段著色器 (Fragment Shader)
+CCProgram fs %{
+  precision highp float;
+  #include <cc-global>
+  #include <cc-local>
+
+  in vec2 v_uv;
+
+  uniform sampler2D mainTexture;
+
+  void main () {
+    // 【測試 1：檢查 UV 是否正常】
+    // 輸出 v_uv 座標（r = u, g = v, b = 0, a = 1）
+    // 如果節點顯示為漸變色（左下黑、右上黃），表示 UV 座標是正常的。
+    gl_FragColor = vec4(v_uv, 0.0, 1.0); 
+    
+    // 【測試 2：檢查紋理採樣是否正常】
+    vec4 color = texture(mainTexture, v_uv);
+    // gl_FragColor = color;
+    
+    // 【測試 3：如果貼圖採樣失敗，但想確認位置正確】
+    // 輸出一個固定的紅色
+    // gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+  }
+}%
