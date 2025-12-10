@@ -1,41 +1,38 @@
-import { _decorator, Component, Enum, Node } from 'cc';
+import { _decorator, Enum, Node } from 'cc';
+import { Base, Manager, getInstance } from '../../lib/BaseManager';
+import { ModelManager } from '../Model/ModelManager';
+import * as View from "db://assets/Script/View/View";
 import { BetManager } from '../View/BetManager';
-import { Base } from '../../lib/DataManager';
 const { ccclass, property } = _decorator;
 
 enum GameState {
     Idle,
-    Bet,
+    Wager,
     Run,
     Dead
 }
 
 @ccclass('GameManager')
-export class GameManager extends Component {
-    private static _instance: GameManager;
-    public static getInstance(): GameManager {
-        return this._instance;
-    }
+export class GameManager extends Manager {
     @property({ type: Enum(GameState), readonly: true }) private gameState: GameState = GameState.Idle;
     private set GameState(value: GameState) {
         this.gameState = value;
         this.runState(value);
     }
-    public isRun() {
+
+    public get isRun() {
         return this.gameState === GameState.Run;
     }
-    public isBet() {
-        return this.gameState === GameState.Bet;
-    }
-    protected onLoad(): void {
-        GameManager._instance = this;
+
+    public get isWager() {
+        return this.gameState === GameState.Wager;
     }
 
-    start() {
-        BetManager.getInstance().closeBetTime();
-        BetManager.getInstance().closeBetMultiple();
-        BetManager.getInstance().closeDeadTime();
-        this.GameState = GameState.Bet;
+    async start() {
+        getInstance(ModelManager).createrSocket("", () => {
+            this.GameState = GameState.Idle;
+        });
+        // console.log(GameManager.getInstance(GameManager));
     }
 
     update(deltaTime: number) {
@@ -43,18 +40,19 @@ export class GameManager extends Component {
     }
 
     private runState(state: GameState) {
+        let model = getInstance(ModelManager);
         switch (state) {
             case GameState.Idle:
                 this.Idle();
                 break;
-            case GameState.Bet:
-                this.Bet(BetManager.getInstance().betTime);
+            case GameState.Wager:
+                this.Wager(model.Wager.wagerTime);
                 break;
             case GameState.Run:
-                this.Run(BetManager.getInstance().runTime, BetManager.getInstance().maxMultiple, BetManager.getInstance().runDeltaTime);
+                this.Run(model.Wager.runTime, model.MultipleModel.maxMultiple, model.Wager.runDeltaTime);
                 break;
             case GameState.Dead:
-                this.Dead(BetManager.getInstance().deadTime);
+                this.Dead(model.Wager.deadTime);
                 break;
         }
     }
@@ -63,23 +61,24 @@ export class GameManager extends Component {
      * 閒置狀態
      */
     private Idle(): void {
-        this.GameState = GameState.Bet;
+        //取得socket結果
+        //待實作
+        this.GameState = GameState.Wager;
     }
 
     /**
      * 可下注狀態
      * @param time 時間
      */
-    private Bet(time: number): void {
-        BetManager.getInstance().showBetTime();
-        BetManager.getInstance().changeBetTime(time);
-        BetManager.getInstance().showBetNode();
-        BetManager.getInstance().resetTakeOut();
+    private Wager(time: number): void {
+        getInstance(View.Bet).showBetNode();
+        getInstance(View.Timer).showWagerTime();
+        getInstance(View.Timer).changeWagerTime(time);
         //時間遞減
         Base.createCountdown((t: number) => {
-            BetManager.getInstance().changeBetTime(t);
+            getInstance(View.Timer).changeWagerTime(t);
         }, () => {
-            BetManager.getInstance().closeBetTime();
+            getInstance(View.Timer).closeWagerTime();
             this.GameState = GameState.Run;
         }, time).start();
     }
@@ -91,16 +90,22 @@ export class GameManager extends Component {
      * @param deltaTime 倍數更新速率
      */
     private Run(time: number, multiple: number, deltaTime: number): void {
-        BetManager.getInstance().showBetMultiple();
-        BetManager.getInstance().changeBetMultiple(0);
-        BetManager.getInstance().closeBetNode();
-        BetManager.getInstance().closeRateButton();
+        getInstance(View.Multiple).showMultiple();
+        getInstance(View.Multiple).changeMultiple(0);
+        getInstance(View.Bet).closeBetNode();
+        getInstance(View.Bet).closeBetBtn();
+        getInstance(BetManager).runTakeOut(getInstance(ModelManager).BetModel.takeOutIndex);
+
         Base.createCountdown((t: number) => {
-            const runMultiple = (time - t + deltaTime) * multiple / time;
-            BetManager.getInstance().runMultiple = runMultiple;
-            BetManager.getInstance().changeBetMultiple(runMultiple);
+            const runMultiple = (time - t) * multiple / time;
+            getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
+            getInstance(View.Multiple).changeMultiple(runMultiple);
+            getInstance(BetManager).changeTakeOut(runMultiple, getInstance(ModelManager).BetModel.takeOutIndex);
+            // getInstance(View.Bet).updateProfit(runMultiple);
         }, () => {
-            BetManager.getInstance().closeBetMultiple();
+            getInstance(ModelManager).MultipleModel.runMultiple = multiple;
+            getInstance(View.Multiple).changeMultiple(multiple);
+            getInstance(View.Multiple).closeTextC();
             this.GameState = GameState.Dead;
         }, time, deltaTime).start();
     }
@@ -112,12 +117,15 @@ export class GameManager extends Component {
      * @param time 
      */
     private Dead(time: number): void {
-        BetManager.getInstance().showDeadTime();
-        BetManager.getInstance().changeDeadTime(time);
+        getInstance(View.Timer).showDeadTime();
+        getInstance(View.Timer).changeDeadTime(time);
         Base.createCountdown((t: number) => {
-            BetManager.getInstance().changeDeadTime(t);
+            getInstance(View.Timer).changeDeadTime(t);
         }, () => {
-            BetManager.getInstance().closeDeadTime();
+            getInstance(View.Timer).closeDeadTime();
+            getInstance(View.Multiple).closemultipleLabel();
+            getInstance(View.Bet).closeTakeOutObjArr();
+            getInstance(ModelManager).BetModel.resetTakeOut(true);
             this.GameState = GameState.Idle;
         }, time).start();
     }

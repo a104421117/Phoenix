@@ -145,7 +145,7 @@
     "fileId": "5d4gCwoCVF+r6Rv+3VVk2T"
   },
   {
-    "__type__": "54c2fhGozBJd4CCjL9+1aSS",
+    "__type__": "cc.Label",
     "_name": "",
     "_objFlags": 0,
     "__editorExtras__": {},
@@ -169,12 +169,12 @@
     "_string": "",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 20,
-    "_fontSize": 20,
+    "_actualFontSize": 40,
+    "_fontSize": 40,
     "_fontFamily": "Arial",
     "_lineHeight": 40,
     "_overflow": 0,
-    "_enableWrapText": false,
+    "_enableWrapText": true,
     "_font": null,
     "_isSystemFontUsed": true,
     "_spacingX": 0,
@@ -206,12 +206,11 @@
       "y": 2
     },
     "_shadowBlur": 2,
-    "Num": 0,
     "_id": ""
   },
   {
     "__type__": "cc.CompPrefabInfo",
-    "fileId": "67tQmy3MpLJYq3F18Tpb8Y"
+    "fileId": "fdx4LYpP9D0JmjDQaqPq3b"
   },
   {
     "__type__": "cc.PrefabInfo",

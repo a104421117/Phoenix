@@ -35,20 +35,16 @@ export class HistoryManager extends Component {
     private insideCount = 100;
     private outsideCount = 8;
     start() {
-        this.init();
+        this.historyBtn.node.on(Button.EventType.CLICK, this.openInsidePage.bind(this), this);
 
-        for (let i = 0; i < 100; i++) {
-            this.addHistory(Math.floor(Math.random() * 25));
-        }
-        console.log(this.history);
+        // for (let i = 0; i < 100; i++) {
+        //     this.addHistory(Math.floor(Math.random() * 25));
+        // }
+        // console.log(this.history);
     }
 
     update(deltaTime: number) {
 
-    }
-
-    init(): void {
-        this.historyBtn.node.on(Button.EventType.CLICK, this.openInsidePage.bind(this), this);
     }
 
     addHistory(recordNum: number, max = 100): void {

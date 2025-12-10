@@ -1,257 +1,225 @@
-import { _decorator, Button, CCFloat, CCInteger, Component, instantiate, Node, Prefab, Sprite } from 'cc';
-import { ArtWord } from '../../lib/DataManager';
+import { _decorator, Button, instantiate, Label, Node, Prefab, Sprite, UIOpacity } from 'cc';
+import { getInstance, Manager } from '../../lib/BaseManager';
+import { ModelManager } from '../Model/ModelManager';
+import { GameModel, RateArr, TakeOutArr } from '../Model/Model';
+import { GameManager } from '../Control/GameManager';
 const { ccclass, property } = _decorator;
 
-type BtnArtWord = {
+type BetObj = {
     btn: Button;
-    artWord: ArtWord;
+    label: Label;
 };
 
-enum BettingCalculatorType {
-    Bet = 0,
-    Profit = 1,
-    Multiple = 2
+@ccclass('TakeOutObj')
+class TakeOutObj {
+    @property({ type: Button, readonly: true }) btn: Button = null;
+    @property({ type: Label, readonly: true }) bet: Label = null;
+    @property({ type: Label, readonly: true }) update: Label = null;
+    @property({ type: Label, readonly: true }) profit: Label = null;
+    @property({ type: Label, readonly: true }) multiple: Label = null;
+    index: number = 0;
+    /**
+     *
+     */
+    constructor(node: Node, index: number) {
+        this.btn = node.getComponent(Button);
+        this.btn.enabled = false;
+        this.bet = node.children[0].getComponent(Label);
+        this.update = node.children[1].getComponent(Label);
+        this.profit = node.children[2].getComponent(Label);
+        this.multiple = node.children[3].getComponent(Label);
+        this.index = index;
+        node.on(Button.EventType.CLICK, this.takeOut.bind(this, index));
+    }
+    show() {
+        this.bet.node.active = true;
+        this.update.node.active = false;
+        this.profit.node.active = false;
+        this.multiple.node.active = false;
+    }
+    run() {
+        this.bet.node.active = false;
+        this.update.node.active = true;
+        this.profit.node.active = false;
+        this.multiple.node.active = false;
+        this.bet.enabled = true;
+    }
+    change(multiple: number) {
+        const numStr = GameModel.getRoundToStr(multiple);
+        this.update.string = numStr;
+    }
+    takeOut(index: number = this.index) {
+        this.bet.node.active = false;
+        this.update.node.active = true;
+        this.profit.node.active = true;
+        this.multiple.node.active = true;
+        getInstance(ModelManager).BetModel.takeOutArr[index].select();
+    }
+};
+
+function test() {
+    this.t = 0;
 }
 
-class BettingCalculator {
-    @property({ type: Button }) private btn: Button = null;
-    @property({ type: ArtWord }) private betArtWord: ArtWord = null;
-    @property({ type: ArtWord }) private profitArtWord: ArtWord = null;
-    @property({ type: ArtWord }) private multipleArtWord: ArtWord = null;
-    showBet(bet: number) {
-        this.btn.node.active = true;
-        this.betArtWord.node.active = true;
-        this.betArtWord.setThousandthNum(bet);
-        this.profitArtWord.node.active = false;
-        this.multipleArtWord.node.active = false;
-    }
-    showProfitMultiple(profit: number, multiple: number) {
-        this.btn.node.active = true;
-        this.betArtWord.node.active = false;
-        this.profitArtWord.node.active = true;
-        this.profitArtWord.setThousandthNum(profit);
-        this.multipleArtWord.node.active = true;
-        this.multipleArtWord.setThousandthNum(multiple);
-    }
-    close() {
-        this.btn.node.active = false;
-    }
-}
-type BettingCalculatorArr = [BettingCalculator, BettingCalculator, BettingCalculator, BettingCalculator, BettingCalculator];
-type RateArr = [number, number, number, number];
-type BetArr = [number, number, number, number, number, number, number, number, number, number];
+type BetObjArr = [BetObj, BetObj, BetObj, BetObj];
+type TakeOutObjArr = [TakeOutObj, TakeOutObj, TakeOutObj, TakeOutObj, TakeOutObj];
 
 @ccclass('BetManager')
-export class BetManager extends Component {
-    private static _instance: BetManager;
-    public static getInstance(): BetManager {
-        return this._instance;
-    }
-    @property({ type: ArtWord }) private BetTimeArtWord: ArtWord;
-    @property({ type: Sprite }) private TextA: Sprite;
+export class BetManager extends Manager {
+    /**整個Bet物件,用於整個bet的顯示與否 */
+    @property({ type: Node }) private betNode: Node;
 
-    @property({ type: ArtWord }) private BetMultipleArtWord: ArtWord;
-    @property({ type: Sprite }) private TextC: Sprite;
 
-    @property({ type: ArtWord }) private ResetTimeArtWord: ArtWord;
-    @property({ type: Sprite }) private TextB: Sprite;
 
-    @property({ type: Node }) private BetNode: Node;
-    @property({ type: Button }) private BottomButtonBet: Button;
-    @property({ type: Prefab }) private buttonPickClickPrefab: Prefab;
+
+    @property({ type: Button }) private bottomButtonBet: Button;
+
+
+    /**顯示bet選項按鈕 */
     @property({ type: Button }) private buttonPickClick: Button;
-    @property({ type: Button }) private BottomButtonMinus: Button;
-    @property({ type: Button }) private BottomButtonPlus: Button;
-    @property({ type: ArtWord }) private BottomArtWord: ArtWord;
-    @property({ type: Button }) private RateBtn: Button;
-    @property({ type: Node }) private RateLayout: Node;
-    private buttonPickClickList: BtnArtWord[] = [];
+    /**減少bet */
+    @property({ type: Button }) private bottomButtonMinus: Button;
+    /**增加bet */
+    @property({ type: Button }) private bottomButtonPlus: Button;
+    /**當前押注額 */
+    @property({ type: Label }) private betLabel: Label;
+    /**關閉bet選項按鈕(除了選項外的部分) */
+    @property({ type: Button }) private betBtn: Button;
+    /**bet選項父物件 */
+    @property({ type: Node }) private betLayout: Node;
+    /**button-pick-click選項的預製物件 */
+    @property({ type: Prefab }) private buttonPickClickPrefab: Prefab;
+    /**button-pick-click選項陣列 */
+    private buttonPickClickArr: BetObjArr = [null, null, null, null];
 
-    @property({ type: Node }) private TakeOutLayout: Node;
-    @property({ type: Prefab }) private buttonPickNormal: Prefab;
 
-    public betTime: number = 12;
-    private betCount: number = 0;
-    public runTime: number = 10;
-    public maxMultiple: number = 5.00;
-    @property({ type: CCFloat }) public runMultiple: number = 0.00;
-    public runDeltaTime: number = 1.0;
-    public deadTime: number = 5;
-    @property({ type: CCInteger, readonly: true }) private bottomArtWordBet: number = 1000;
-    private rateArr: RateArr = [1000, 2500, 5000, 10000];
-    private betArr: BetArr = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
-    private bettingCalculatorArr: BettingCalculatorArr = [new BettingCalculator(), new BettingCalculator(), new BettingCalculator(), new BettingCalculator(), new BettingCalculator()];
-    protected onLoad(): void {
-        BetManager._instance = this;
-    }
+    @property({ type: Prefab }) private buttonPickNormalPrefab: Prefab;
+    @property({ type: Node }) private takeOutLayout: Node;
+    @property({ type: Array(TakeOutObj), readonly: true }) private takeOutObjArr: TakeOutObjArr = [null, null, null, null, null];
+
+
+
+
 
     start() {
-        this.init();
+        this.setEvent();
+        this.closeBetBtn();
+        //需要與API串接
+        this.changeBet(getInstance(ModelManager).BetModel.bet);
+        this.setTakeOut(getInstance(ModelManager).BetModel.takeOutArr);
+        this.setBet(getInstance(ModelManager).BetModel.rateArr);
     }
 
     update(deltaTime: number) {
 
     }
 
-    private init() {
-        this.setEvent();
-        this.closeRateButton();
-        //需要與API串接
-        this.setRate(this.rateArr);
-        this.changeBottomArtWord(this.bottomArtWordBet);
-    }
-
     private setEvent(): void {
-        this.buttonPickClick.node.on(Button.EventType.CLICK, this.showRateButton.bind(this), this);
-        this.RateBtn.node.on(Button.EventType.CLICK, this.closeRateButton.bind(this), this);
-        this.BottomButtonMinus.node.on(Button.EventType.CLICK, this.BottomArtWordLess.bind(this, this.betArr), this);
-        this.BottomButtonPlus.node.on(Button.EventType.CLICK, this.BottomArtWordPlus.bind(this, this.betArr), this);
-        this.BottomButtonBet.node.on(Button.EventType.CLICK, this.changeBettingCalculatorArr.bind(this), this);
+        this.bottomButtonBet.node.on(Button.EventType.CLICK, this.showTakeOut.bind(this));
+        this.buttonPickClick.node.on(Button.EventType.CLICK, this.showBetBtn.bind(this));
+        this.bottomButtonMinus.node.on(Button.EventType.CLICK, this.betLess.bind(this));
+        this.bottomButtonPlus.node.on(Button.EventType.CLICK, this.betPlus.bind(this));
+        this.betBtn.node.on(Button.EventType.CLICK, this.closeBetBtn.bind(this));
     }
 
-    public showBetTime(): void {
-        this.TextA.node.active = true;
-        this.BetTimeArtWord.node.active = true;
-    }
-
-    public closeBetTime(): void {
-        this.TextA.node.active = false;
-        this.BetTimeArtWord.node.active = false;
-    }
-
-    public changeBetTime(time: number): string {
-        const str = time + "s";
-        this.BetTimeArtWord.string = str;
-        return str;
-    }
-
-    public showBetMultiple(): void {
-        this.TextC.node.active = true;
-        this.BetMultipleArtWord.node.active = true;
-    }
-
-    public closeBetMultiple(): void {
-        this.TextC.node.active = false;
-    }
-
-    public changeBetMultiple(multiple: number): string {
-        //四捨五入
-        let num = multiple.toFixed(2);
-        let str = num + "x";
-        this.BetMultipleArtWord.string = str;
-        return str;
-    }
-
-    public showDeadTime(): void {
-        this.TextB.node.active = true;
-        this.ResetTimeArtWord.node.active = true;
-    }
-
-    public closeDeadTime(): void {
-        this.TextB.node.active = false;
-        this.BetMultipleArtWord.node.active = false;
-        this.ResetTimeArtWord.node.active = false;
-    }
-
-    public changeDeadTime(time: number): string {
-        let str = time.toString() + "s"
-        this.ResetTimeArtWord.string = str;
-        return str;
-    }
-
-    private setRate(rateArr: RateArr): BtnArtWord[] {
-        rateArr.forEach((rate) => {
+    private setBet(betArr: RateArr): BetObjArr {
+        betArr.forEach((bet, index) => {
             const node = instantiate(this.buttonPickClickPrefab);
-            this.RateLayout.addChild(node);
+            this.betLayout.addChild(node);
 
-            const artWord = node.getComponentInChildren(ArtWord);
-            const numStr = rate.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            artWord.string = numStr;
+            const btn = node.getComponent(Button);
+            btn.node.on(Button.EventType.CLICK, this.changeBet.bind(this, bet));
 
-            const button = node.getComponent(Button);
-            button.node.on(Button.EventType.CLICK, this.changeBottomArtWord.bind(this, rate));
+            const label = node.children[0].getComponent(Label);
+            const thousandthRate = GameModel.getThousandth(bet);
+            label.string = thousandthRate;
 
-            const buttonPickClick: BtnArtWord = {
-                btn: button,
-                artWord: artWord,
+            const buttonPickClick: BetObj = {
+                btn: btn,
+                label: label
             };
-            this.buttonPickClickList.push(buttonPickClick);
+            this.buttonPickClickArr[index] = buttonPickClick;
         });
-        return this.buttonPickClickList;
+        return this.buttonPickClickArr;
     }
 
-    private changeBottomArtWord(num: number): void {
-        this.bottomArtWordBet = num;
-        this.BottomArtWord.setThousandthNum(num);
-        this.closeRateButton();
+    private changeBet(num: number): string {
+        const thousandth = getInstance(ModelManager).BetModel.changeBetThousandth(num);
+        this.betLabel.string = thousandth;
+        this.closeBetBtn();
+        return thousandth;
     }
 
-    private showRateButton(): void {
-        this.RateBtn.node.active = true;
+    private showBetBtn(): void {
+        this.betBtn.node.active = true;
     }
 
-    public closeRateButton(): void {
-        this.RateBtn.node.active = false;
+    public closeBetBtn(): void {
+        this.betBtn.node.active = false;
     }
 
-    public showBetNode(): void {
-        this.BetNode.active = true;
+    private betPlus(): number {
+        const num = getInstance(ModelManager).BetModel.Plus;
+        this.changeBet(num);
+        return num;
     }
 
-    public closeBetNode(): void {
-        this.BetNode.active = false;
+    private betLess(): number {
+        const num = getInstance(ModelManager).BetModel.Less;
+        this.changeBet(num);
+        return num;
     }
 
-    private BottomArtWordPlus(betArr: BetArr): number {
-        const filter = betArr.filter(e => e > this.bottomArtWordBet);
-        this.bottomArtWordBet = filter.length > 0 ? Math.min(...filter) : this.bottomArtWordBet;
-        this.BottomArtWord.setThousandthNum(this.bottomArtWordBet);
-        return this.bottomArtWordBet;
+    private setTakeOut(takeOutArr: TakeOutArr): void {
+        takeOutArr.forEach((takeOut, index) => {
+            const node = instantiate(this.buttonPickNormalPrefab);
+            node.getComponent(UIOpacity).opacity = 0;
+            this.takeOutLayout.addChild(node);
+
+            const buttonPickNormal: TakeOutObj = new TakeOutObj(node, index);
+            this.takeOutObjArr[index] = buttonPickNormal;
+        })
     }
 
-    private BottomArtWordLess(betArr: BetArr): number {
-        const filter = betArr.filter(e => e < this.bottomArtWordBet);
-        this.bottomArtWordBet = filter.length > 0 ? Math.max(...filter) : this.bottomArtWordBet;
-        this.BottomArtWord.setThousandthNum(this.bottomArtWordBet);
-        return this.bottomArtWordBet;
+    public closeTakeOutObjArr(): void {
+        this.takeOutObjArr.forEach((takeOutObj) => {
+            takeOutObj.btn.getComponent(UIOpacity).opacity = 0;
+            takeOutObj.btn.enabled = false;
+        });
     }
 
-    private changeBettingCalculatorArr(): void {
-        if (this.bettingCalculatorArr.length > this.betCount) {
-            let betTakeOut = this.bettingCalculatorArr[this.betCount];
-            betTakeOut.showBet(this.bottomArtWordBet);
+    public changeTakeOutArr(): void {
+        this.takeOutObjArr.forEach((takeOutObj, index) => {
+            takeOutObj.update.string = GameModel.getThousandth(getInstance(ModelManager).BetModel.takeOutArr[index].TakeOut);
+        });
+    }
 
-
-            // betTakeOut.Bet = this.bottomArtWordBet;
-            // if (!betTakeOut.haveBtnArtWord()) {
-            //     const node = instantiate(this.buttonPickNormal);
-            //     this.TakeOutLayout.addChild(node);
-            //     const btn = node.getComponent(Button);
-            //     const artWord = node.getComponentInChildren(ArtWord);
-            //     const btnArtWord: BtnArtWord = {
-            //         btn: btn,
-            //         artWord: artWord
-            //     };
-            //     betTakeOut.BtnArtWord = btnArtWord;
-            // } else {
-            //     betTakeOut.showBtnArtWord();
-            // }
-            // betTakeOut.setThousandthNum(this.bottomArtWordBet);
-            this.betCount++;
+    private showTakeOut() {
+        const index = getInstance(ModelManager).BetModel.setTakeOut();
+        if (index < getInstance(ModelManager).BetModel.takeOutArr.length) {
+            this.takeOutObjArr[index].btn.getComponent(UIOpacity).opacity = 255;
+            this.takeOutObjArr[index].bet.string = GameModel.getThousandth(getInstance(ModelManager).BetModel.bet);
         }
     }
 
-    public resetTakeOut(): void {
-        this.bettingCalculatorArr.forEach((bettingCalculator) => {
-            // betTakeOut.closeBtnArtWord();
-            // bettingCalculator.clearData();
-        })
-        this.betCount = 0;
+    public runTakeOut(takeOutIndex: number = getInstance(ModelManager).BetModel.takeOutIndex) {
+        for (let i = 0; i < takeOutIndex; i++) {
+            this.takeOutObjArr[i].run();
+        }
     }
 
-    public prodButtonPickNormal(): void {
-        let node = instantiate(this.buttonPickNormal);
-        this.TakeOutLayout.addChild(node);
+    public changeTakeOut(multiple: number, takeOutIndex: number = getInstance(ModelManager).BetModel.takeOutIndex): void {
+        for (let i = 0; i < takeOutIndex; i++) {
+            this.takeOutObjArr[i].change(multiple);
+        }
+    }
+
+    public showBetNode(): void {
+        this.betNode.active = true;
+    }
+
+    public closeBetNode(): void {
+        this.betNode.active = false;
     }
 }
 

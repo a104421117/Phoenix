@@ -6,16 +6,12 @@ export class AudioManager extends Component {
     @property({ type: Slider }) private soundSlider: Slider;
     private soundList: AudioSource[] = [];
     start() {
-        this.init();
+        this.soundList.push(...this.getComponentsInChildren(AudioSource));
+        this.soundSlider.node.on('slide', this.changeSoundVolume.bind(this, this.soundList), this);
     }
 
     update(deltaTime: number) {
 
-    }
-
-    init(): void {
-        this.soundList.push(...this.getComponentsInChildren(AudioSource));
-        this.soundSlider.node.on('slide', this.changeSoundVolume.bind(this, this.soundList), this);
     }
 
     /**

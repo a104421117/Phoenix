@@ -12,15 +12,11 @@ export class SettingManager extends Component {
     }
 
     start() {
-        this.init();
+        this.settingButton.node.on(Button.EventType.CLICK, this.openSettingMenu.bind(this), this);
     }
 
     update(deltaTime: number) {
 
-    }
-
-    init() {
-        this.settingButton.node.on(Button.EventType.CLICK, this.openSettingMenu.bind(this), this);
     }
 
     /**
@@ -32,7 +28,7 @@ export class SettingManager extends Component {
     }
 
     goHome() {
-        
+
     }
 
     pause() {

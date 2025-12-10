@@ -1,28 +1,22 @@
 import { _decorator, AssetManager, Component, director, error, ProgressBar, Button } from 'cc';
+import { Manager } from '../../lib/BaseManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('LoadManager')
-export class LoadManager extends Component {
+export class LoadManager extends Manager {
     private gameScene: string = "Scene/GameScene";
     @property({ type: ProgressBar }) private progressBar: ProgressBar;
     @property({ type: Button }) private startGame: Button;
     async start() {
-        this.init();
+        this.progressBar.node.active = true;
+        this.startGame.node.active = false;
+        this.startGame.node.on(Button.EventType.CLICK, this.runGameScene.bind(this, this.gameScene), this);
         await this.getAPI();
         this.preloadGameScene();
     }
 
     update(deltaTime: number) {
 
-    }
-
-    /**
-     * 初始化
-     */
-    init(): void {
-        this.progressBar.node.active = true;
-        this.startGame.node.active = false;
-        this.startGame.node.on(Button.EventType.CLICK, this.runGameScene.bind(this, this.gameScene), this);
     }
 
     /**
