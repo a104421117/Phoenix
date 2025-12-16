@@ -1,0 +1,76 @@
+
+skeleton.png
+size: 2048, 2048
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+Fire-Start1
+  rotate: false
+  xy: 2, 2
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start10
+  rotate: false
+  xy: 1158, 328
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start2
+  rotate: false
+  xy: 580, 328
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start3
+  rotate: false
+  xy: 2, 328
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start4
+  rotate: false
+  xy: 1158, 654
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start5
+  rotate: false
+  xy: 580, 654
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start6
+  rotate: false
+  xy: 2, 654
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start7
+  rotate: false
+  xy: 1158, 980
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start8
+  rotate: false
+  xy: 580, 980
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1
+Fire-Start9
+  rotate: false
+  xy: 2, 980
+  size: 576, 324
+  orig: 576, 324
+  offset: 0, 0
+  index: -1

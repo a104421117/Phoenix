@@ -10,8 +10,8 @@ export class TimeManager extends Manager {
     @property({ type: Label }) private resetLabel: Label;
     @property({ type: Sprite }) private TextB: Sprite;
     start() {
-        // this.closeWagerTime();
-        // this.closeDeadTime();
+        this.closeWagerTime();
+        this.closeDeadTime();
     }
 
     update(deltaTime: number) {

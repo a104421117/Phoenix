@@ -1,0 +1,62 @@
+
+feather.png
+size: 227, 227
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+Feather
+  rotate: false
+  xy: 2, 8
+  size: 164, 217
+  orig: 168, 219
+  offset: 4, 2
+  index: -1
+particle1
+  rotate: true
+  xy: 199, 96
+  size: 25, 26
+  orig: 25, 26
+  offset: 0, 0
+  index: -1
+particle7
+  rotate: true
+  xy: 199, 96
+  size: 25, 26
+  orig: 25, 26
+  offset: 0, 0
+  index: -1
+particle2
+  rotate: false
+  xy: 168, 157
+  size: 31, 32
+  orig: 31, 32
+  offset: 0, 0
+  index: -1
+particle3
+  rotate: false
+  xy: 168, 123
+  size: 31, 32
+  orig: 31, 32
+  offset: 0, 0
+  index: -1
+particle4
+  rotate: false
+  xy: 168, 191
+  size: 33, 34
+  orig: 33, 34
+  offset: 0, 0
+  index: -1
+particle5
+  rotate: false
+  xy: 168, 91
+  size: 29, 30
+  orig: 29, 30
+  offset: 0, 0
+  index: -1
+particle6
+  rotate: false
+  xy: 168, 59
+  size: 29, 30
+  orig: 29, 30
+  offset: 0, 0
+  index: -1

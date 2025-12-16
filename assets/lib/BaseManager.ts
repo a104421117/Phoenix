@@ -1,4 +1,4 @@
-import { _decorator, CCFloat, Component, director, Label } from "cc";
+import { _decorator, CCFloat, Component, director, ISchedulable, Label, macro } from "cc";
 
 const { ccclass, property } = _decorator;
 
@@ -30,77 +30,74 @@ export function getInstance<T extends Manager>(classConstructor: new (...args: a
     return Manager.getInstance(classConstructor);
 }
 
-/**倒數 */
-type Countdown = {
-    /**開始 */
-    start(): void;
-    /**停止 */
-    stop(onStop: Function): void;
-}
-
-export class Base {
-    /**
-     * 倒數函式
-     * @param onTick 更新callback
-     * @param onComplete 結束callback
-     * @param times 更新次數
-     * @param tickTime 更新頻率(秒)
-     * @returns 
-     */
-    public static createCountdown(onTick: Function, onComplete: Function, times: number, deltaTime: number = 1, onStop?: Function): Countdown {
-        let timerId = null;
-        let count = 0;
-
-        function tick() {
-            count++;
-            if (count >= times) {
-                clearInterval(timerId);
-                timerId = null;
-                if (onComplete) onComplete();
-                return;
+export namespace Base {
+    type TimeObj = { uuid: string, function: Function };
+    export class Timer {
+        private static timeMap = new Map<string, ISchedulable>();
+        public static createCountdown(onTick: Function, onComplete: Function, time: number, id: string = "Timer", deltaTime: number = 1,): TimeObj {
+            let timer = time;
+            const timeMap = this.timeMap;
+            const uuid = UIDUtils.generateUID();
+            const target: ISchedulable = {
+                id: id,
+                uuid: uuid
             }
-            if (onTick) onTick(times - count * deltaTime);
+            let tick = function () {
+                timer -= deltaTime;
+                if (timer > 0) {
+                    if (onTick) onTick(timer);
+                } else {
+                    Timer.stopTimer(timeObj, onComplete);
+                }
+            }
+            director.getScheduler().schedule(tick, target, deltaTime);
+            timeMap.set(uuid, target);
+            const timeObj: TimeObj = {
+                uuid: uuid,
+                function: tick
+            };
+            return timeObj;
         }
-
-        return {
-            start(): void {
-                if (timerId !== null) return; // 避免重複啟動
-                timerId = setInterval(tick, deltaTime * 1000);
-            },
-            stop(): void {
-                clearInterval(timerId);
-                onStop(times - count * deltaTime);
-                timerId = null;
+        public static createCount(onTick: Function, onComplete: Function, time: number, id: string = "Timer", deltaTime: number = 1): TimeObj {
+            let count = 0;
+            const timeMap = this.timeMap;
+            const uuid = UIDUtils.generateUID();
+            const target: ISchedulable = {
+                uuid: uuid
             }
-        };
+            let tick = function () {
+                count += deltaTime;
+                if (count > time) {
+                    Timer.stopTimer(timeObj, onComplete);
+                } else {
+                    if (onTick) onTick(count);
+                }
+            }
+            director.getScheduler().schedule(tick, target, deltaTime);
+            timeMap.set(uuid, target);
+            const timeObj: TimeObj = {
+                uuid: uuid,
+                function: tick
+            };
+            return timeObj;
+        }
+        public static stopTimer(timer: TimeObj, onComplete: Function): Map<string, ISchedulable> {
+            let target = this.timeMap.get(timer.uuid);
+            this.timeMap.delete(timer.uuid);
+            director.getScheduler().unschedule(timer.function, target);
+            if (onComplete) onComplete();
+            return this.timeMap;
+        }
     }
-    /**
-     * 計時函式
-     * @param onTick 更新callback
-     * @param onStop 結束callback
-     * @param tickTime 更新頻率(秒)
-     * @returns 
-     */
-    public static createCount(onTick: Function, onStop: Function, tickTime: number = 1): Countdown {
-        let timerId = null;
-        let count = 0;
-
-        function tick() {
-            count++;
-            if (onTick) onTick(count);
+    export class UIDUtils {
+        /** * 生成混淆 ID
+         * 結構: 時間戳(36進制) + 隨機數
+         */
+        public static generateUID(): string {
+            const timestamp = Date.now().toString(36); // 縮短長度
+            const randomPart = Math.random().toString(36).substring(2, 6);
+            return `${timestamp}-${randomPart}`;
         }
-
-        return {
-            start(): void {
-                if (timerId !== null) return; // 避免重複啟動
-                timerId = setInterval(tick, tickTime * 1000);
-            },
-            stop(): void {
-                clearInterval(timerId);
-                onStop(count);
-                timerId = null;
-            }
-        };
     }
 }
 

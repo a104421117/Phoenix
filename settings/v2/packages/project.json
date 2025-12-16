@@ -7,5 +7,19 @@
       "height": 580
     }
   },
-  "custom_joint_texture_layouts": []
+  "custom_joint_texture_layouts": [],
+  "layer": [
+    {
+      "name": "Game",
+      "value": 1
+    },
+    {
+      "name": "UI",
+      "value": 2
+    },
+    {
+      "name": "Popover",
+      "value": 4
+    }
+  ]
 }

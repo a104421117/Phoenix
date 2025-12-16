@@ -1,4 +1,4 @@
-import { _decorator, CCFloat, CCInteger, Node } from 'cc';
+import { _decorator, CCFloat, CCInteger, director, Node } from 'cc';
 import { GameModel, StateModel } from './Model';
 import { Manager } from '../../lib/BaseManager';
 const { ccclass, property } = _decorator;
@@ -8,7 +8,7 @@ export class ModelManager extends Manager {
     @property({ type: StateModel }) public Wager: StateModel = new StateModel();
     @property({ type: GameModel.BetModel }) public BetModel: GameModel.BetModel = new GameModel.BetModel();
     @property({ type: GameModel.MultipleModel }) public MultipleModel: GameModel.MultipleModel = new GameModel.MultipleModel();
-
+    @property({ type: GameModel.RankModel }) public RankModel: GameModel.RankModel = new GameModel.RankModel();
 
     public socket: WebSocket = null;
     public createrSocket(socketUrl: string, callback: Function) {
