@@ -1,62 +1,23 @@
-
 feather.png
-size: 227, 227
-format: RGBA8888
-filter: Linear, Linear
-repeat: none
+size:227,227
+filter:Linear,Linear
+scale:0.4
 Feather
-  rotate: false
-  xy: 2, 8
-  size: 164, 217
-  orig: 168, 219
-  offset: 4, 2
-  index: -1
+bounds:2,8,164,217
+offsets:4,2,168,219
 particle1
-  rotate: true
-  xy: 199, 96
-  size: 25, 26
-  orig: 25, 26
-  offset: 0, 0
-  index: -1
+bounds:199,96,25,26
+rotate:90
 particle7
-  rotate: true
-  xy: 199, 96
-  size: 25, 26
-  orig: 25, 26
-  offset: 0, 0
-  index: -1
+bounds:199,96,25,26
+rotate:90
 particle2
-  rotate: false
-  xy: 168, 157
-  size: 31, 32
-  orig: 31, 32
-  offset: 0, 0
-  index: -1
+bounds:168,157,31,32
 particle3
-  rotate: false
-  xy: 168, 123
-  size: 31, 32
-  orig: 31, 32
-  offset: 0, 0
-  index: -1
+bounds:168,123,31,32
 particle4
-  rotate: false
-  xy: 168, 191
-  size: 33, 34
-  orig: 33, 34
-  offset: 0, 0
-  index: -1
+bounds:168,191,33,34
 particle5
-  rotate: false
-  xy: 168, 91
-  size: 29, 30
-  orig: 29, 30
-  offset: 0, 0
-  index: -1
+bounds:168,91,29,30
 particle6
-  rotate: false
-  xy: 168, 59
-  size: 29, 30
-  orig: 29, 30
-  offset: 0, 0
-  index: -1
+bounds:168,59,29,30

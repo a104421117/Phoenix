@@ -1,7 +1,7 @@
 {
     "skeleton": {
         "hash": "XJ5X9JTxrWE",
-        "spine": "3.8-from-4.0-from-4.1-from-4.2.38",
+        "spine": "4.2.43",
         "x": -960,
         "y": -540,
         "width": 1920,
@@ -58,7 +58,10 @@
                             960,
                             540
                         ],
-                        "hull": 4
+                        "hull": 4,
+                        "sequence": {
+                            "count": 10
+                        }
                     }
                 }
             }
@@ -68,7 +71,7 @@
         "StarGane-VFX": {
             "slots": {
                 "Fire-Start1": {
-                    "color": [
+                    "rgba": [
                         {
                             "time": 0.3667,
                             "color": "ffffffff"
@@ -80,10 +83,22 @@
                     ]
                 }
             },
-            "deform": {
+            "attachments": {
                 "default": {
                     "Fire-Start1": {
-                        "Fire-Start": {}
+                        "Fire-Start": {
+                            "sequence": [
+                                {
+                                    "mode": "once",
+                                    "delay": 0.0417
+                                },
+                                {
+                                    "time": 0.4,
+                                    "mode": "loop",
+                                    "delay": 0.0833
+                                }
+                            ]
+                        }
                     }
                 }
             }

@@ -2,7 +2,7 @@
   "ver": "1.0.27",
   "importer": "image",
   "imported": true,
-  "uuid": "d9c7cadd-1c06-47a3-be00-690c45b17de2",
+  "uuid": "a52894cf-ad2e-4707-a321-fc9f5d51cabf",
   "files": [
     ".json",
     ".png"
@@ -10,14 +10,14 @@
   "subMetas": {
     "6c48a": {
       "importer": "texture",
-      "uuid": "d9c7cadd-1c06-47a3-be00-690c45b17de2@6c48a",
+      "uuid": "a52894cf-ad2e-4707-a321-fc9f5d51cabf@6c48a",
       "displayName": "Top-button-ham-normal",
       "id": "6c48a",
       "name": "texture",
       "userData": {
         "wrapModeS": "clamp-to-edge",
         "wrapModeT": "clamp-to-edge",
-        "imageUuidOrDatabaseUri": "d9c7cadd-1c06-47a3-be00-690c45b17de2",
+        "imageUuidOrDatabaseUri": "a52894cf-ad2e-4707-a321-fc9f5d51cabf",
         "isUuid": true,
         "visible": false,
         "minfilter": "linear",
@@ -34,7 +34,7 @@
     },
     "f9941": {
       "importer": "sprite-frame",
-      "uuid": "d9c7cadd-1c06-47a3-be00-690c45b17de2@f9941",
+      "uuid": "a52894cf-ad2e-4707-a321-fc9f5d51cabf@f9941",
       "displayName": "Top-button-ham-normal",
       "id": "f9941",
       "name": "spriteFrame",
@@ -113,7 +113,7 @@
           ]
         },
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "d9c7cadd-1c06-47a3-be00-690c45b17de2@6c48a",
+        "imageUuidOrDatabaseUri": "a52894cf-ad2e-4707-a321-fc9f5d51cabf@6c48a",
         "atlasUuid": "",
         "trimType": "none"
       },
@@ -129,6 +129,6 @@
     "type": "sprite-frame",
     "hasAlpha": true,
     "fixAlphaTransparencyArtifacts": false,
-    "redirect": "d9c7cadd-1c06-47a3-be00-690c45b17de2@6c48a"
+    "redirect": "a52894cf-ad2e-4707-a321-fc9f5d51cabf@6c48a"
   }
 }

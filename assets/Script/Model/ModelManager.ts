@@ -13,7 +13,7 @@ export class ModelManager extends Manager {
     public socket: WebSocket = null;
     public createrSocket(socketUrl: string, callback: Function) {
         // const socket = new WebSocket(`ws://localhost:8080?token=${obj.token}`);
-        const socket = new WebSocket('ws://localhost:8080');
+        const socket = new WebSocket('ws://192.168.1.113:8080/test');
         // socket.protocol
 
         let ping = 0;

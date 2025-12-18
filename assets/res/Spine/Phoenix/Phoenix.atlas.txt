@@ -1,335 +1,127 @@
-
 Phoenix.png
-size: 2048, 2048
-format: RGBA8888
-filter: Linear, Linear
-repeat: none
+size:2048,1024
+filter:Linear,Linear
+scale:0.2
 Body
-  rotate: false
-  xy: 906, 852
-  size: 176, 47
-  orig: 546, 87
-  offset: 343, 6
-  index: -1
+bounds:903,622,118,32
+offsets:228,4,364,58
 Electricity1
-  rotate: true
-  xy: 580, 1462
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:1546,250,384,216
 Electricity2
-  rotate: false
-  xy: 2, 7
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:1160,250,384,216
 Electricity3
-  rotate: false
-  xy: 2, 333
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:774,394,384,216
 Electricity4
-  rotate: false
-  xy: 2, 659
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:388,394,384,216
 Electricity5
-  rotate: false
-  xy: 2, 985
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:2,396,384,216
 Electricity6
-  rotate: false
-  xy: 2, 1311
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:1574,468,384,216
 Electricity7
-  rotate: false
-  xy: 2, 1637
-  size: 576, 324
-  orig: 576, 324
-  offset: 0, 0
-  index: -1
+bounds:1188,468,384,216
 Leg
-  rotate: false
-  xy: 97, 1963
-  size: 39, 21
-  orig: 39, 23
-  offset: 0, 2
-  index: -1
+bounds:1051,654,26,14
+offsets:0,1,26,15
 Tail-1
-  rotate: false
-  xy: 2, 1972
-  size: 369, 66
-  orig: 371, 68
-  offset: 1, 0
-  index: -1
+bounds:897,640,247,44
+offsets:0,0,247,45
 Tail-2
-  rotate: false
-  xy: 1665, 669
-  size: 335, 95
-  orig: 335, 96
-  offset: 0, 0
-  index: -1
+bounds:821,28,223,64
 Tail-3
-  rotate: false
-  xy: 1666, 617
-  size: 277, 79
-  orig: 349, 82
-  offset: 70, 2
-  index: -1
+bounds:613,32,184,53
+offsets:47,1,233,55
 Tail-Back
-  rotate: true
-  xy: 1254, 738
-  size: 260, 111
-  orig: 261, 113
-  offset: 1, 0
-  index: -1
+bounds:287,202,173,74
+offsets:1,0,174,75
 Tail-Mid
-  rotate: 180
-  xy: 120, 1961
-  size: 312, 77
-  orig: 332, 82
-  offset: 20, 2
-  index: -1
+bounds:978,632,208,52
+offsets:13,1,221,54
+rotate:180
 Wing-Back-Down-I
-  rotate: true
-  xy: 1883, 1665
-  size: 373, 141
-  orig: 373, 142
-  offset: 0, 1
-  index: -1
+bounds:1932,217,249,94
+offsets:0,1,249,95
+rotate:90
 Wing-Back-UP
-  rotate: true
-  xy: 1782, 1241
-  size: 333, 158
-  orig: 333, 158
-  offset: 0, 0
-  index: -1
+bounds:936,94,222,105
 Wing-Back-UP-I
-  rotate: false
-  xy: 1158, 14
-  size: 373, 142
-  orig: 374, 143
-  offset: 1, 0
-  index: -1
+bounds:2,171,249,94
+offsets:0,0,249,95
 Wing-Front-Down-I
-  rotate: true
-  xy: 1232, 1571
-  size: 467, 170
-  orig: 468, 171
-  offset: 1, 1
-  index: -1
+bounds:327,278,312,114
 Wing-Front-Up
-  rotate: true
-  xy: 906, 901
-  size: 485, 191
-  orig: 485, 191
-  offset: 0, 0
-  index: -1
+bounds:2,267,323,127
 Wing-Front-Up-I
-  rotate: false
-  xy: 1533, 22
-  size: 421, 171
-  orig: 468, 171
-  offset: 47, 0
-  index: -1
+bounds:653,85,281,114
+offsets:31,0,312,114
 fire1
-  rotate: false
-  xy: 1664, 766
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:2,5,93,123
+rotate:90
 fire2
-  rotate: false
-  xy: 1651, 1576
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:127,3,95,119
+rotate:90
 fire2-1
-  rotate: false
-  xy: 906, 1388
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1027,316,76,124
+rotate:90
 fire2-2
-  rotate: false
-  xy: 906, 1714
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1726,59,88,160
+rotate:90
 fire2-3
-  rotate: false
-  xy: 580, 158
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:496,76,99,137
+rotate:90
 fire2-4
-  rotate: false
-  xy: 580, 484
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1888,62,100,158
+rotate:90
 fire2-5
-  rotate: false
-  xy: 580, 810
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1377,59,89,167
+rotate:90
 fire2-6
-  rotate: false
-  xy: 580, 1136
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1960,551,72,133
 fire3
-  rotate: false
-  xy: 1642, 1808
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:370,2,93,110
+rotate:90
 fire3-1
-  rotate: 270
-  xy: 1514, 415
-  size: 576, 154
-  orig: 576, 324
-  offset: 0, 88
-  index: -1
+bounds:1546,144,384,104
+offsets:0,58,384,216
 fire3-2
-  rotate: true
-  xy: 1496, 1462
-  size: 576, 154
-  orig: 576, 324
-  offset: 0, 88
-  index: -1
+bounds:1160,144,384,104
+offsets:0,58,384,216
 fire3-3
-  rotate: 270
-  xy: 1398, 993
-  size: 576, 154
-  orig: 576, 324
-  offset: 0, 88
-  index: -1
+bounds:388,175,384,104
+offsets:0,58,384,216
+rotate:180
 fire3-4
-  rotate: true
-  xy: 1369, 415
-  size: 576, 154
-  orig: 576, 324
-  offset: 0, 88
-  index: -1
+bounds:774,197,384,104
+offsets:0,58,384,216
 fire3-5
-  rotate: true
-  xy: 1250, 993
-  size: 576, 154
-  orig: 576, 324
-  offset: 0, 88
-  index: -1
+bounds:641,288,384,104
+offsets:0,58,384,216
 fire4
-  rotate: false
-  xy: 1606, 183
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1254,49,97,121
+rotate:90
 fire4-1
-  rotate: true
-  xy: 1218, 158
-  size: 576, 154
-  orig: 576, 154
-  offset: 0, 0
-  index: -1
+bounds:2,100,241,69
 fire4-2
-  rotate: true
-  xy: 1098, 736
-  size: 576, 154
-  orig: 576, 154
-  offset: 0, 0
-  index: -1
+bounds:253,97,241,78
 fire4-3
-  rotate: false
-  xy: 580, 2
-  size: 576, 154
-  orig: 576, 154
-  offset: 0, 0
-  index: -1
+bounds:606,612,289,72
 fire4-4
-  rotate: true
-  xy: 1062, 158
-  size: 576, 154
-  orig: 576, 154
-  offset: 0, 0
-  index: -1
+bounds:2,618,301,66
 fire4-5
-  rotate: true
-  xy: 906, 158
-  size: 576, 154
-  orig: 576, 154
-  offset: 0, 0
-  index: -1
+bounds:305,614,299,70
 fire5
-  rotate: false
-  xy: 1553, 998
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1161,34,91,110
 fire6
-  rotate: false
-  xy: 1550, 1230
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:248,2,93,120
+rotate:90
 fire7
-  rotate: false
-  xy: 1374, 183
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1603,50,95,121
+rotate:90
 foot
-  rotate: false
-  xy: 2, 2027
-  size: 26, 11
-  orig: 26, 11
-  offset: 0, 0
-  index: -1
+bounds:897,676,17,8
 hair
-  rotate: false
-  xy: 150, 1991
-  size: 38, 21
-  orig: 38, 24
-  offset: 0, 1
-  index: -1
+bounds:1079,653,26,14
+offsets:0,1,26,16
 head
-  rotate: false
-  xy: 75, 1977
-  size: 54, 27
-  orig: 55, 28
-  offset: 1, 0
-  index: -1
+bounds:1013,650,37,18
 shader
-  rotate: false
-  xy: 13, 1963
-  size: 65, 17
-  orig: 65, 17
-  offset: 0, 0
-  index: -1
+bounds:1108,673,43,11

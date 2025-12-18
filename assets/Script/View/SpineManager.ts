@@ -35,11 +35,16 @@ export class SpineManager extends Manager {
     @property({ type: sp.Skeleton }) private egg: sp.Skeleton;
     @property({ type: sp.Skeleton }) private Phoenix: sp.Skeleton;
     @property({ type: sp.Skeleton }) private feather: sp.Skeleton;
-    @property({ type: sp.Skeleton }) private skeleton: sp.Skeleton;
+    @property({ type: sp.Skeleton }) private Start: sp.Skeleton;
 
     start() {
+        let self = this;
+        this.Start.setCompleteListener(() => {
+            self.closeStart();
+        })
         this.closeEgg();
         this.closePhoenix();
+        this.closeStart();
     }
 
     update(deltaTime: number) {
@@ -61,25 +66,30 @@ export class SpineManager extends Manager {
     }
 
     eggIdle(): void {
-        this.egg.node.active = true;
+        this.egg.enabled = true;
         this.egg.setAnimation(0, "start", false);
         this.egg.addAnimation(0, "idle", true);
     }
 
     eggDie(): void {
-        this.egg.node.active = true;
+        this.egg.enabled = true;
         this.egg.setAnimation(0, "die", false);
     }
 
     closeEgg(): void {
-        this.egg.node.active = false;
+        this.egg.enabled = false;
+    }
+
+    private closeStart(): void {
+        this.Start.enabled = false;
     }
 
     private PhoenixInit(): void {
         this.Phoenix.node.setPosition(this.moveInit.x, this.moveInit.y);
         this.Phoenix.node.setRotationFromEuler(this.eulerInit.x, this.eulerInit.y, this.eulerInit.z);
-        this.Phoenix.node.active = true;
-        this.skeleton.setAnimation(0, "animation", false);
+        this.Phoenix.enabled = true;
+        this.Start.setAnimation(0, "StarGane-VFX", false);
+        this.Start.enabled = true;
         this.Phoenix.setAnimation(0, "fly", true);
     }
 
@@ -131,7 +141,7 @@ export class SpineManager extends Manager {
     }
 
     closePhoenix(): void {
-        this.Phoenix.node.active = false;
+        this.Phoenix.enabled = false;
     }
 }
 

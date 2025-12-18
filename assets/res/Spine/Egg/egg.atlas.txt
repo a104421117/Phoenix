@@ -1,146 +1,44 @@
-
 egg.png
-size: 2048, 1024
-format: RGBA8888
-filter: Linear, Linear
-repeat: none
+size:2048,512
+filter:Linear,Linear
+scale:0.2
 Fire_boom1
-  rotate: false
-  xy: 1306, 234
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:220,2,216,216
 Fire_boom10
-  rotate: false
-  xy: 980, 234
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:2,2,216,216
 Fire_boom11
-  rotate: false
-  xy: 654, 234
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1746,220,216,216
 Fire_boom2
-  rotate: false
-  xy: 328, 234
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1528,220,216,216
 Fire_boom3
-  rotate: false
-  xy: 2, 234
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1310,220,216,216
 Fire_boom4
-  rotate: false
-  xy: 1632, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:1092,220,216,216
 Fire_boom5
-  rotate: false
-  xy: 1306, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:874,220,216,216
 Fire_boom6
-  rotate: false
-  xy: 980, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:656,220,216,216
 Fire_boom7
-  rotate: false
-  xy: 654, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:438,220,216,216
 Fire_boom8
-  rotate: false
-  xy: 328, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:220,220,216,216
 Fire_boom9
-  rotate: false
-  xy: 2, 560
-  size: 324, 324
-  orig: 324, 324
-  offset: 0, 0
-  index: -1
+bounds:2,220,216,216
 egg
-  rotate: true
-  xy: 1864, 471
-  size: 87, 111
-  orig: 87, 111
-  offset: 0, 0
-  index: -1
+bounds:1964,362,58,74
 fire1
-  rotate: false
-  xy: 1162, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1530,64,154,154
 fire2
-  rotate: false
-  xy: 930, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1374,64,154,154
 fire3
-  rotate: false
-  xy: 698, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1218,64,154,154
 fire4
-  rotate: false
-  xy: 466, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:1062,64,154,154
 fire5
-  rotate: false
-  xy: 234, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:906,64,154,154
 fire6
-  rotate: false
-  xy: 2, 2
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:750,64,154,154
 fire7
-  rotate: false
-  xy: 1632, 96
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:594,64,154,154
 fire8
-  rotate: false
-  xy: 1632, 328
-  size: 230, 230
-  orig: 230, 230
-  offset: 0, 0
-  index: -1
+bounds:438,64,154,154
