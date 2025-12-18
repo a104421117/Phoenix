@@ -1,22 +1,63 @@
-import { _decorator, Component, Node, sp } from 'cc';
-import { Manager } from '../../lib/BaseManager';
+import { _decorator, Component, Node, sp, Vec2, Vec3 } from 'cc';
+import { getInstance, Manager } from '../../lib/BaseManager';
+import { Move, FlyState } from './Move';
 const { ccclass, property } = _decorator;
+
+export const enum PhoenixState {
+    None,
+    Egg,
+    Move,
+    Fly,
+    Die
+}
+
 
 @ccclass('SpineManager')
 export class SpineManager extends Manager {
+    private state: PhoenixState = PhoenixState.None;
+    public set State(state: PhoenixState) {
+        switch (state) {
+            case PhoenixState.None:
+                break;
+            case PhoenixState.Egg:
+                break;
+            case PhoenixState.Move:
+                this.PhoenixInit();
+                break;
+            case PhoenixState.Fly:
+                getInstance(Move).state = FlyState.Fly;
+                break;
+            case PhoenixState.Die:
+                break;
+        }
+        this.state = state;
+    }
     @property({ type: sp.Skeleton }) private egg: sp.Skeleton;
     @property({ type: sp.Skeleton }) private Phoenix: sp.Skeleton;
     @property({ type: sp.Skeleton }) private feather: sp.Skeleton;
     @property({ type: sp.Skeleton }) private skeleton: sp.Skeleton;
 
     start() {
-        // this.eggIdle();
         this.closeEgg();
         this.closePhoenix();
     }
 
     update(deltaTime: number) {
-
+        // console.log(deltaTime);
+        switch (this.state) {
+            case PhoenixState.None:
+                break;
+            case PhoenixState.Egg:
+                break;
+            case PhoenixState.Move:
+                this.PhoenixMove(deltaTime);
+                break;
+            case PhoenixState.Fly:
+                this.PhoenixFly(deltaTime);
+                break;
+            case PhoenixState.Die:
+                break;
+        }
     }
 
     eggIdle(): void {
@@ -34,16 +75,58 @@ export class SpineManager extends Manager {
         this.egg.node.active = false;
     }
 
-    PhoenixFly(): void {
+    private PhoenixInit(): void {
+        this.Phoenix.node.setPosition(this.moveInit.x, this.moveInit.y);
+        this.Phoenix.node.setRotationFromEuler(this.eulerInit.x, this.eulerInit.y, this.eulerInit.z);
         this.Phoenix.node.active = true;
+        this.skeleton.setAnimation(0, "animation", false);
         this.Phoenix.setAnimation(0, "fly", true);
     }
 
-    PhoenixMove(t: number): void {
-        if (t < 1) {
-            const pos = this.Phoenix.node.getPosition();
-            const x = -800 + t * (800 - 300);
-            this.Phoenix.node.setPosition(x, pos.y);
+    private moveInit: Vec2 = new Vec2(-800, -145);
+    private moveTaget = -300;
+    private moveSpeed = 100;
+    private PhoenixMove(t: number): void {
+        const pos = this.Phoenix.node.getPosition();
+        const x = pos.x + t * this.moveSpeed;
+        const y = pos.y;
+
+        if (x > this.moveTaget) {
+            this.State = PhoenixState.Fly;
+        } else {
+            this.Phoenix.node.setPosition(x, y);
+        }
+    }
+
+    private eulerInit = new Vec3(0, 0, 0);
+    private eulerTaget = 90;
+    private eulerSpeed: number = 1;
+
+    private flyTaget = 0;
+    private flySpeed = 25;
+
+    // private targetQuat: Quat = new Quat();
+
+    private PhoenixFly(t: number): void {
+        const euler = this.Phoenix.node.eulerAngles;
+        const eulerX = euler.x;
+        const eulerY = euler.y;
+        const eulerZ = euler.z + t * this.eulerSpeed;
+
+        const pos = this.Phoenix.node.getPosition();
+        const flyX = pos.x + t * this.flySpeed;
+        const flyY = pos.y;
+
+        if (eulerZ <= this.eulerTaget) {
+            this.Phoenix.node.setRotationFromEuler(eulerX, eulerY, eulerZ);
+        }
+
+        if (flyX <= this.flyTaget) {
+            this.Phoenix.node.setPosition(flyX, flyY);
+        }
+
+        if (flyX > this.flyTaget && eulerZ > this.eulerTaget) {
+            this.State = PhoenixState.None;
         }
     }
 

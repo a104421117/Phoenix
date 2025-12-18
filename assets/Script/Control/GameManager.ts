@@ -1,10 +1,11 @@
-import { _decorator, Enum, Node } from 'cc';
+import { _decorator, Enum, game, Node } from 'cc';
 import { Base, Manager, getInstance } from '../../lib/BaseManager';
 import { ModelManager } from '../Model/ModelManager';
 import * as View from "db://assets/Script/View/View";
 import { TakeOutManager } from '../View/TakeOutManager';
 import { GameModel } from '../Model/Model';
-import { SpineManager } from '../View/SpineManager';
+import { PhoenixState, SpineManager } from '../View/SpineManager';
+import { FlyState, Move } from '../View/Move';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -31,6 +32,7 @@ export class GameManager extends Manager {
     }
 
     async start() {
+        game.frameRate = 30;
         getInstance(ModelManager).createrSocket("", () => {
             this.GameState = GameState.Idle;
         });
@@ -51,7 +53,7 @@ export class GameManager extends Manager {
                 this.Wager(model.Wager.wagerTime);
                 break;
             case GameState.Run:
-                this.Run(10, 5, 0.05);
+                this.Run(100, 5, 0.05);
                 break;
             case GameState.Dead:
                 this.Dead(model.Wager.deadTime);
@@ -77,6 +79,7 @@ export class GameManager extends Manager {
         getInstance(View.Timer).showWagerTime();
         getInstance(View.Timer).changeWagerTime(time);
         getInstance(SpineManager).eggIdle();
+        getInstance(Move).state = FlyState.Reset;
         //時間遞減
         Base.Timer.createCountdown((t: number) => {
             getInstance(View.Timer).changeWagerTime(t);
@@ -100,13 +103,12 @@ export class GameManager extends Manager {
         getInstance(View.Bet).closeBetBtn();
         getInstance(TakeOutManager).showBottomButtonPickall();
         getInstance(TakeOutManager).runTakeOut();
-        getInstance(SpineManager).PhoenixFly();
+        getInstance(SpineManager).State = PhoenixState.Move;
         Base.Timer.createCount((t: number) => {
             const runMultiple = GameModel.getFloor(t * multiple / time, 2);
             getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
             getInstance(View.Multiple).changeMultiple(runMultiple);
             getInstance(TakeOutManager).changeTakeOut(runMultiple);
-            getInstance(SpineManager).PhoenixMove(t);
         }, () => {
             getInstance(ModelManager).MultipleModel.runMultiple = multiple;
             getInstance(View.Multiple).changeMultiple(multiple);
@@ -129,6 +131,7 @@ export class GameManager extends Manager {
         getInstance(TakeOutManager).showRepeatBtn();
         getInstance(TakeOutManager).closeWin();
         getInstance(SpineManager).eggDie();
+        getInstance(Move).state = FlyState.None;
         Base.Timer.createCountdown((t: number) => {
             getInstance(View.Timer).changeDeadTime(t);
         }, () => {

@@ -61,7 +61,7 @@ export class TakeOutManager extends Manager {
     }
 
     private showTakeOut(): void {
-        this.BottomButtonPickall.enabled = false;
+        // this.BottomButtonPickall.enabled = false;
         this.takeOutArr[this.index].show(getInstance(ModelManager).BetModel.bet);
         this.index++;
     }

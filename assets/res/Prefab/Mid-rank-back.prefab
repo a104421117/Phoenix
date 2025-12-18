@@ -72,7 +72,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -122,7 +122,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -258,7 +258,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -394,7 +394,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -556,7 +556,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -715,7 +715,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -877,7 +877,7 @@
       "z": 1
     },
     "_mobility": 0,
-    "_layer": 33554432,
+    "_layer": 2,
     "_euler": {
       "__type__": "cc.Vec3",
       "x": 0,
@@ -961,6 +961,8 @@
       "__id__": 0
     },
     "fileId": "17DvYDt3JIRLiKOKJiVzGK",
+    "instance": null,
+    "targetOverrides": null,
     "nestedPrefabInstanceRoots": null
   },
   {
@@ -1101,7 +1103,7 @@
     "green": null,
     "red": null,
     "normal": null,
-    "_id": "0bi1f5cPdAf5i3s3qOTlRB"
+    "_id": "cecGHc+vJMoaurSq7M93ha"
   },
   {
     "__type__": "732e5Q/JvhJdpodbX2j1JG+",
@@ -1114,7 +1116,7 @@
     "green": null,
     "red": null,
     "normal": null,
-    "_id": "60deVGAB5C07BRC8YAXZRp"
+    "_id": "35KsxE5xZC2IQDdrLh2uuB"
   },
   {
     "__type__": "732e5Q/JvhJdpodbX2j1JG+",
@@ -1127,7 +1129,7 @@
     "green": null,
     "red": null,
     "normal": null,
-    "_id": "cdpkx+wIxH5qU0OWuPQi/l"
+    "_id": "eduxpcnOBNFqUTOmT0Uiuj"
   },
   {
     "__type__": "732e5Q/JvhJdpodbX2j1JG+",
@@ -1140,7 +1142,7 @@
     "green": null,
     "red": null,
     "normal": null,
-    "_id": "c4OAfGM05DOpSlbZ8j3qqc"
+    "_id": "8aLFBeLJhGkqXGhfC3ncDH"
   },
   {
     "__type__": "732e5Q/JvhJdpodbX2j1JG+",
@@ -1153,7 +1155,7 @@
     "green": null,
     "red": null,
     "normal": null,
-    "_id": "bef1OGy7FPi7CpMG3wYxwR"
+    "_id": "1f9aOKAiVILK1bPH4sS1JA"
   },
   {
     "__type__": "cc.PrefabInfo",
