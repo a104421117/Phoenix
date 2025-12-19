@@ -33,7 +33,6 @@ export class TakeOutManager extends Manager {
     start() {
         this.bottomButtonBet.node.on(Button.EventType.CLICK, this.showTakeOut.bind(this));
         this.BottomButtonPickall.node.on(Button.EventType.CLICK, this.takeOut.bind(this));
-
         this.repeatBtn.node.on(Button.EventType.CLICK, this.repeatBet.bind(this));
 
         this.closeBottomButtonPickall();
@@ -64,6 +63,10 @@ export class TakeOutManager extends Manager {
         // this.BottomButtonPickall.enabled = false;
         this.takeOutArr[this.index].show(getInstance(ModelManager).BetModel.bet);
         this.index++;
+    }
+
+    public autoTakeOut(): void {
+
     }
 
     private takeOut(): void {

@@ -20,6 +20,10 @@
     {
       "name": "Popover",
       "value": 4
+    },
+    {
+      "name": "Error",
+      "value": 8
     }
   ]
 }

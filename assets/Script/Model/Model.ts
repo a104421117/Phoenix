@@ -84,4 +84,6 @@ export class SetModel {
 
 
 export type BetArr = [number, number, number, number, number, number, number, number, number, number];
-export type RateArr = [number, number, number, number];
+export type RateArr = number[];
+// export type RateArr = [number, number, number, number];
+

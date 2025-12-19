@@ -49,5 +49,32 @@
         }
       }
     }
+  },
+  "textureCompressConfig": {
+    "customConfigs": {
+      "c0nhsEvZlHSpRQZ3L840u2": {
+        "id": "c0nhsEvZlHSpRQZ3L840u2",
+        "name": "New Format Config",
+        "path": "",
+        "command": "",
+        "format": "webp",
+        "overwrite": true
+      }
+    },
+    "userPreset": {
+      "46alipKn5PjKitpQofV5ha": {
+        "name": "New Compress Config",
+        "options": {
+          "web": {
+            "webp": {
+              "quality": 80
+            },
+            "png": {
+              "quality": 80
+            }
+          }
+        }
+      }
+    }
   }
 }
