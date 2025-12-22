@@ -6,6 +6,7 @@ import { TakeOutManager } from '../View/TakeOutManager';
 import { GameModel } from '../Model/Model';
 import { PhoenixState, SpineManager } from '../View/SpineManager';
 import { FlyState, Move } from '../View/Move';
+import { WebSocketManager } from '../Model/WebSocketManager';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -33,10 +34,9 @@ export class GameManager extends Manager {
 
     async start() {
         game.frameRate = 30;
-        getInstance(ModelManager).createrSocket("", () => {
+        getInstance(WebSocketManager).createrSocket("ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A", () => {
             this.GameState = GameState.Idle;
         });
-        // console.log(GameManager.getInstance(GameManager));
     }
 
     update(deltaTime: number) {

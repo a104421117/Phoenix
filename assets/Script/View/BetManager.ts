@@ -40,14 +40,14 @@ export class BetManager extends Manager {
         this.closeBetBtn();
         //需要與API串接
         this.changeBet(getInstance(ModelManager).BetModel.bet);
-        this.initBet(getInstance(ModelManager).BetModel.rateArr);
+        this.initBet();
     }
 
     update(deltaTime: number) {
 
     }
 
-    private initBet(betArr: RateArr): BetObjArr {
+    private initBet(betArr: RateArr = getInstance(ModelManager).BetModel.rateArr): BetObjArr {
         betArr.forEach((bet, index) => {
             const node = instantiate(this.buttonPickClickPrefab);
             this.betLayout.addChild(node);

@@ -8,7 +8,6 @@ export namespace GameModel {
         @property({ type: CCInteger, readonly: true, tooltip: "選擇注額" }) public bet: number = 1000;
         @property({ type: Array(CCInteger), readonly: true, tooltip: "增減注額" }) public betArr: BetArr = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
         @property({ type: Array(CCInteger), readonly: true, tooltip: "注額選項" }) public rateArr: RateArr = [1000, 2500, 5000, 10000];
-        @property({ type: CCInteger, readonly: true, tooltip: "押注次數" }) public betCount: number = 0;
         @property({ type: CCInteger, readonly: true, tooltip: "押注上限" }) public betCountMax: number = 5;
         get Less() {
             const filter = this.betArr.filter(e => e < this.bet);

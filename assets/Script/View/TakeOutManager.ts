@@ -3,6 +3,7 @@ import { getInstance, Manager } from '../../lib/BaseManager';
 import { ModelManager } from '../Model/ModelManager';
 import { TakeOut } from 'db://assets/Script/ModelView/TakeOut';
 import { GameModel } from '../Model/Model';
+import { WebSocketManager } from '../Model/WebSocketManager';
 const { ccclass, property } = _decorator;
 
 type TakeOutArr = [TakeOut, TakeOut, TakeOut, TakeOut, TakeOut];
@@ -60,6 +61,8 @@ export class TakeOutManager extends Manager {
     }
 
     private showTakeOut(): void {
+        getInstance(WebSocketManager).Bet({ index: this.index, amount: getInstance(ModelManager).BetModel.bet });
+
         // this.BottomButtonPickall.enabled = false;
         this.takeOutArr[this.index].show(getInstance(ModelManager).BetModel.bet);
         this.index++;
