@@ -127,7 +127,8 @@ class SocketMassage<T> {
         this.data = data;
     }
     toJson(): string {
-        return JSON.stringify(this);
+        const json = JSON.stringify(this);
+        return json;
     }
     static parse<T>(json: string) {
         const socketMassage: SocketMassage<T> = JSON.parse(json);

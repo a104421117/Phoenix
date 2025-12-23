@@ -34,14 +34,14 @@ export namespace Base {
     type TimeObj = { uuid: string, function: Function };
     export class Timer {
         private static timeMap = new Map<string, ISchedulable>();
-        public static createCountdown(onTick: Function, onComplete: Function, time: number, id: string = "Timer", deltaTime: number = 1,): TimeObj {
+        public static createCountdown(onTick: Function, onComplete: Function, time: number, id: string = "Countdown", deltaTime: number = 1,): TimeObj {
             let timer = time;
             const timeMap = this.timeMap;
             const uuid = UIDUtils.generateUID();
             const target: ISchedulable = {
                 id: id,
                 uuid: uuid
-            }
+            };
             let tick = function () {
                 timer -= deltaTime;
                 if (timer > 0) {
@@ -58,11 +58,12 @@ export namespace Base {
             };
             return timeObj;
         }
-        public static createCount(onTick: Function, onComplete: Function, time: number, id: string = "Timer", deltaTime: number = 1): TimeObj {
+        public static createCount(onTick: Function, onComplete: Function, time: number, id: string = "Count", deltaTime: number = 1): TimeObj {
             let count = 0;
             const timeMap = this.timeMap;
             const uuid = UIDUtils.generateUID();
             const target: ISchedulable = {
+                id: id,
                 uuid: uuid
             }
             let tick = function () {

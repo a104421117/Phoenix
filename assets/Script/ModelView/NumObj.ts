@@ -50,7 +50,7 @@ export class NumObj extends Label {
         this.index = index;
     }
 
-    setNumber(num: number, decimalPlaces: number = 0) {
+    private setNumber(num: number, decimalPlaces: number = 0) {
         const floor = GameModel.getFloor(num, decimalPlaces);
         this.string = floor.toString();
         return floor;

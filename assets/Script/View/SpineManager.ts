@@ -48,7 +48,6 @@ export class SpineManager extends Manager {
     }
 
     update(deltaTime: number) {
-        // console.log(deltaTime);
         switch (this.state) {
             case PhoenixState.None:
                 break;
@@ -112,8 +111,8 @@ export class SpineManager extends Manager {
     private eulerTaget = 90;
     private eulerSpeed: number = 1;
 
-    private flyTaget = 0;
-    private flySpeed = 25;
+    private flyTaget = 200;
+    private flySpeed = 10;
 
     // private targetQuat: Quat = new Quat();
 

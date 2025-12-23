@@ -37,10 +37,10 @@ export class HistoryManager extends Component {
     start() {
         this.historyBtn.node.on(Button.EventType.CLICK, this.openInsidePage.bind(this), this);
 
-        // for (let i = 0; i < 100; i++) {
-        //     this.addHistory(Math.floor(Math.random() * 25));
-        // }
-        // console.log(this.history);
+        for (let i = 0; i < 100; i++) {
+            this.addHistory(Math.floor(Math.random() * 25));
+        }
+        console.log(this.history);
     }
 
     update(deltaTime: number) {

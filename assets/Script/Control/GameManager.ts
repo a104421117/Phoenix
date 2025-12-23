@@ -7,6 +7,7 @@ import { GameModel } from '../Model/Model';
 import { PhoenixState, SpineManager } from '../View/SpineManager';
 import { FlyState, Move } from '../View/Move';
 import { WebSocketManager } from '../Model/WebSocketManager';
+import { AutoManager } from '../View/AutoManager';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -53,7 +54,7 @@ export class GameManager extends Manager {
                 this.Wager(model.Wager.wagerTime);
                 break;
             case GameState.Run:
-                this.Run(100, 5, 0.05);
+                this.Run(10, 5, 0.05);
                 break;
             case GameState.Dead:
                 this.Dead(model.Wager.deadTime);
@@ -75,6 +76,10 @@ export class GameManager extends Manager {
      * @param time 時間
      */
     private Wager(time: number): void {
+        if (getInstance(AutoManager).IsAuto === true) {
+            const autoData = getInstance(AutoManager).getAutoData();
+            getInstance(TakeOutManager).autoTakeOut(autoData.bet, autoData.betCount);
+        }
         getInstance(View.Bet).showBetNode();
         getInstance(View.Timer).showWagerTime();
         getInstance(View.Timer).changeWagerTime(time);
@@ -109,7 +114,11 @@ export class GameManager extends Manager {
             getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
             getInstance(View.Multiple).changeMultiple(runMultiple);
             getInstance(TakeOutManager).changeTakeOut(runMultiple);
+            if (runMultiple >= getInstance(AutoManager).CashOutNum) {
+                getInstance(TakeOutManager).takeOut();
+            }
         }, () => {
+            getInstance(AutoManager).minusRunCount();
             getInstance(ModelManager).MultipleModel.runMultiple = multiple;
             getInstance(View.Multiple).changeMultiple(multiple);
             getInstance(View.Multiple).closeTextC();

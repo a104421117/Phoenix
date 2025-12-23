@@ -56,7 +56,6 @@ export class TakeOut extends Component {
     }
 
     show(bet: number = this.bet) {
-        console.log(bet);
         this.isBetRepeat = false;
 
         this.node.active = true;

@@ -4,6 +4,7 @@ import { ModelManager } from '../Model/ModelManager';
 import { TakeOut } from 'db://assets/Script/ModelView/TakeOut';
 import { GameModel } from '../Model/Model';
 import { WebSocketManager } from '../Model/WebSocketManager';
+import { GameManager } from '../Control/GameManager';
 const { ccclass, property } = _decorator;
 
 type TakeOutArr = [TakeOut, TakeOut, TakeOut, TakeOut, TakeOut];
@@ -60,19 +61,23 @@ export class TakeOutManager extends Manager {
         }
     }
 
-    private showTakeOut(): void {
-        getInstance(WebSocketManager).Bet({ index: this.index, amount: getInstance(ModelManager).BetModel.bet });
-
-        // this.BottomButtonPickall.enabled = false;
-        this.takeOutArr[this.index].show(getInstance(ModelManager).BetModel.bet);
-        this.index++;
+    private showTakeOut(self: Button, bet: number = getInstance(ModelManager).BetModel.bet): void {
+        if (getInstance(GameManager).isRun === false) {
+            getInstance(WebSocketManager).Bet({ index: this.index, amount: bet });
+            // this.BottomButtonPickall.enabled = false;
+            this.takeOutArr[this.index].show(bet);
+            this.index++;
+        }
     }
 
-    public autoTakeOut(): void {
-
+    public autoTakeOut(bet: number, conut: number): void {
+        for (let i = 0; i < conut; i++) {
+            this.takeOutArr[i].show(bet);
+        }
+        this.index += conut;
     }
 
-    private takeOut(): void {
+    public takeOut(): void {
         this.BottomButtonPickall.enabled = false;
         this.showWin();
         this.takeOutArr.forEach((takeOut) => {

@@ -111,7 +111,6 @@ export class SettingManager extends Component {
     }
 
     closeMenuDecorateBackgroundF() {
-        console.log("MenuDecorateBackgroundF");
         this.MenuDecorateBackgroundF.active = false;
     }
 

@@ -17,10 +17,12 @@ export class AudioManager extends Component {
         let music = this.node.getChildByName("music");
         this.musicList.push(...music.getComponentsInChildren(AudioSource));
         this.musicSlider.node.on('slide', this.changeMusicVolume.bind(this), this);
+        this.musicSlider.node.emit("slide", this.musicSlider);
 
         let sound = this.node.getChildByName("sound");
         this.soundList.push(...sound.getComponentsInChildren(AudioSource));
         this.soundSlider.node.on("slide", this.changeSoundVolume.bind(this), this);
+        this.soundSlider.node.emit("slide", this.soundSlider);
 
         this.muteToggle.node.on("toggle", this.changMute.bind(this), this);
     }

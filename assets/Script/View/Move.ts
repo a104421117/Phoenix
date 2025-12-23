@@ -12,8 +12,8 @@ export const enum FlyState {
 @ccclass('Move')
 export class Move extends Manager {
     public state: FlyState = FlyState.None;
-    private flySpeed: number = 10;
-    private resetSpeed: number = 200;
+    private flySpeed: number = 20;
+    private resetSpeed: number = 500;
     private flyTarget: number = 5600;
     start() {
 
