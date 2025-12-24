@@ -51,7 +51,7 @@ export namespace GameModel {
         // return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
     /**
-     * 四捨五入
+     * 無條件捨去
      * @param num 數字
      * @param index 小數位
      * @returns 

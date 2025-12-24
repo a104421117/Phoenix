@@ -14,27 +14,31 @@ export class WebSocketManager extends Manager {
     }
 
     public createrSocket(socketUrl: string, callback: Function) {
-        this.webSocket = new WebSocket(socketUrl);
-
-        this.webSocket.onopen = () => {
-            console.log('已連接');
+        this.scheduleOnce(() => {
             callback(true);
-        };
+        }, 1);
 
-        this.webSocket.onmessage = (event) => {
-            const message: string = event.data;
-            this.receiveSocket(message);
-        };
+        // this.webSocket = new WebSocket(socketUrl);
 
-        this.webSocket.onclose = () => {
-            callback(false);
-            console.log('連接關閉');
-        };
+        // this.webSocket.onopen = () => {
+        //     console.log('已連接');
+        //     callback(true);
+        // };
 
-        this.webSocket.onerror = (error) => {
-            callback(false);
-            console.error('錯誤:', error);
-        };
+        // this.webSocket.onmessage = (event) => {
+        //     const message: string = event.data;
+        //     this.receiveSocket(message);
+        // };
+
+        // this.webSocket.onclose = () => {
+        //     callback(false);
+        //     console.log('連接關閉');
+        // };
+
+        // this.webSocket.onerror = (error) => {
+        //     callback(false);
+        //     console.error('錯誤:', error);
+        // };
     }
 
     private sendSocket<T>(message: SocketMassage<T>) {
@@ -66,7 +70,7 @@ export class WebSocketManager extends Manager {
 
     public Bet(data: Bet) {
         const message: SocketMassage<Bet> = new SocketMassage<Bet>(SocketMassageType.Bet, data);
-        this.sendSocket(message);
+        // this.sendSocket(message);
         return message;
     }
 

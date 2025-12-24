@@ -8,6 +8,7 @@ import { PhoenixState, SpineManager } from '../View/SpineManager';
 import { FlyState, Move } from '../View/Move';
 import { WebSocketManager } from '../Model/WebSocketManager';
 import { AutoManager } from '../View/AutoManager';
+import { HistoryManager } from '../View/HistoryManager';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -34,8 +35,10 @@ export class GameManager extends Manager {
     }
 
     async start() {
-        game.frameRate = 30;
-        getInstance(WebSocketManager).createrSocket("ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A", () => {
+        // game.frameRate = 30;
+        // const socketUrl = "ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A";
+        const socketUrl = "";
+        getInstance(WebSocketManager).createrSocket(socketUrl, () => {
             this.GameState = GameState.Idle;
         });
     }
@@ -123,6 +126,7 @@ export class GameManager extends Manager {
             getInstance(View.Multiple).changeMultiple(multiple);
             getInstance(View.Multiple).closeTextC();
             getInstance(SpineManager).closePhoenix();
+            getInstance(HistoryManager).addHistory(multiple);
             this.GameState = GameState.Dead;
         }, time, this.GameState, deltaTime);
     }
