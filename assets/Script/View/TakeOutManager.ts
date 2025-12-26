@@ -53,6 +53,7 @@ export class TakeOutManager extends Manager {
         for (let i = 0; i < betCountMax; i++) {
             const node = instantiate(this.buttonPickNormalPrefab);
             this.takeOutLayout.addChild(node);
+            node.on('takeout', this.showWin.bind(this));
 
             const _takeOut: TakeOut = node.getComponent(TakeOut);
             _takeOut.init(betCountMax);
@@ -62,7 +63,7 @@ export class TakeOutManager extends Manager {
     }
 
     private showTakeOut(self: Button, bet: number = getInstance(ModelManager).BetModel.bet): void {
-        if (getInstance(GameManager).isRun === false) {
+        if (getInstance(GameManager).isRun === false && this.index < this.takeOutArr.length) {
             getInstance(WebSocketManager).Bet({ index: this.index, amount: bet });
             // this.BottomButtonPickall.enabled = false;
             this.takeOutArr[this.index].show(bet);
@@ -88,7 +89,7 @@ export class TakeOutManager extends Manager {
     private checkTakeOut(): boolean {
         let isShow = false;
         for (let i = 0; i < this.index; i++) {
-            if (this.takeOutArr[i].IsShow === true) {
+            if (this.takeOutArr[i].IsShow === true && this.takeOutArr[i].isTakeOut === false) {
                 isShow = true;
             }
         }
@@ -159,7 +160,6 @@ export class TakeOutManager extends Manager {
 
     private showWin(): number {
         this.checkTakeOut();
-        this.winNode.active = true;
 
         let betTotal = 0;
         for (let i = 0; i < this.index; i++) {
@@ -174,9 +174,7 @@ export class TakeOutManager extends Manager {
         const winStr = this.winNum > 0 ? "+" + GameModel.getThousandth(this.winNum) : GameModel.getThousandth(this.winNum);
         this.H3A.string = winStr;
 
-        // const pos = this.takeOutArr[this.index].node.getPosition();
-        // this.winNode.setPosition(450, pos.y + 25);
-
+        this.winNode.active = true;
         this.takeOutArr[this.index - 1].node.addChild(this.winNode);
         return this.winNum;
     }

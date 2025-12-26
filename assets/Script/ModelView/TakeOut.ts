@@ -106,6 +106,7 @@ export class TakeOut extends Component {
             const multiple = GameModel.getRoundToStr(this.multiple, 2);
             const multipleStr = multiple + "x";
             this.multipleLabel.string = multipleStr;
+            this.node.emit('takeout', this.TakeOut);
         }
     }
 }

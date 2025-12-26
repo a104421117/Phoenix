@@ -1,4 +1,4 @@
-import { _decorator, Button, Component, instantiate, Label, Layers, Node, Prefab } from 'cc';
+import { _decorator, Button, Component, instantiate, Label, Layers, Node, PageView, Prefab } from 'cc';
 import { History } from './History'
 import { GameModel } from '../Model/Model';
 import { Manager } from '../../lib/BaseManager';
@@ -13,6 +13,13 @@ export class HistoryManager extends Manager {
     @property({ type: Prefab }) private historyPrefab: Prefab;
     @property({ type: Array(Label) }) private statsLabelArr: Label[] = [];
 
+    @property({ type: Button }) private TopButton: Button;
+    @property({ type: Node }) private ScoreBoxBackground: Node;
+    @property({ type: Button }) private MenuBottonCloseBtn: Button;
+
+    @property({ type: PageView }) private pageView: PageView;
+
+
     private history: number[] = [];
     private historyInsidePool: History[] = [];
     private historyOutsidePool: History[] = [];
@@ -21,16 +28,16 @@ export class HistoryManager extends Manager {
     private statsArr = [0, 0, 0, 0, 0];
     private todayBestNum = 0;
     private historyBestNum = 0;
+
     start() {
-        // this.historyBtn.node.on(Button.EventType.CLICK, this.openInsidePage.bind(this), this);
+        this.TopButton.node.on(Button.EventType.CLICK, this.openScoreBoxBackground.bind(this), this);
+        this.MenuBottonCloseBtn.node.on(Button.EventType.CLICK, this.closeScoreBoxBackground.bind(this), this);
+        this.closeScoreBoxBackground();
 
         for (let i = 0; i < 100; i++) {
             const num = GameModel.getFloor(Math.random() * 25, 2);
             this.addHistory(num);
         }
-        // this.schedule(() => {
-        //     this.addHistory(Math.random() * 25);
-        // }, 10);
     }
 
     update(deltaTime: number) {
@@ -107,6 +114,15 @@ export class HistoryManager extends Manager {
             this.historyBestNum = historyBest;
             this.historyBestLabel.string = numStr;
         }
+    }
+
+    openScoreBoxBackground(): void {
+        this.ScoreBoxBackground.active = true;
+        this.pageView.node.children[0].children[0].setPosition(393, -20.5);
+    }
+
+    closeScoreBoxBackground(): void {
+        this.ScoreBoxBackground.active = false;
     }
 }
 

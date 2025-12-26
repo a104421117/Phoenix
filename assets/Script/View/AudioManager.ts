@@ -16,7 +16,7 @@ export class AudioManager extends Component {
     start() {
         let music = this.node.getChildByName("music");
         this.musicList.push(...music.getComponentsInChildren(AudioSource));
-        this.musicSlider.node.on('slide', this.changeMusicVolume.bind(this), this);
+        this.musicSlider.node.on("slide", this.changeMusicVolume.bind(this), this);
         this.musicSlider.node.emit("slide", this.musicSlider);
 
         let sound = this.node.getChildByName("sound");

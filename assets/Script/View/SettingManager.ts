@@ -41,7 +41,6 @@ export class SettingManager extends Component {
         this.closeMenuDecorateBackgroundD();
         this.closeMenuDecorateBackgroundE();
         this.closeMenuDecorateBackgroundF();
-        this.closeScoreBoxBackground();
     }
 
     start() {
@@ -51,7 +50,6 @@ export class SettingManager extends Component {
         this.settingBtn.node.on(Button.EventType.CLICK, this.openMenuDecorateBackgroundD.bind(this), this);
         this.leaveBtn.node.on(Button.EventType.CLICK, this.openMenuDecorateBackgroundE.bind(this), this);
         this.BottomButtonAFK.node.on(Button.EventType.CLICK, this.openMenuDecorateBackgroundF.bind(this), this);
-        this.TopButton.node.on(Button.EventType.CLICK, this.openScoreBoxBackground.bind(this), this);
 
         this.MenuBottonCloseABtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundA.bind(this), this);
         this.MenuBottonCloseBBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundB.bind(this), this);
@@ -59,7 +57,6 @@ export class SettingManager extends Component {
         this.MenuBottonCloseDBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundD.bind(this), this);
         this.MenuBottonCloseEBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundE.bind(this), this);
         this.MenuBottonCloseFBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundF.bind(this), this);
-        this.MenuBottonCloseGBtn.node.on(Button.EventType.CLICK, this.closeScoreBoxBackground.bind(this), this);
 
         this.leaveCancelBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundE.bind(this), this);
         this.leaveCheckBtn.node.on(Button.EventType.CLICK, this.leaveGame.bind(this), this);
@@ -118,19 +115,6 @@ export class SettingManager extends Component {
 
     closeMenuDecorateBackgroundF() {
         this.MenuDecorateBackgroundF.active = false;
-    }
-
-    openScoreBoxBackground(): void {
-        this.ScoreBoxBackground.active = true;
-        // this.pageView.node.emit('ready', () => {
-        // const lastIndex = this.pageView.getPages().length - 1;
-        // this.pageView.setCurrentPageIndex(lastIndex);
-        // });
-
-    }
-
-    closeScoreBoxBackground(): void {
-        this.ScoreBoxBackground.active = false;
     }
 
     leaveGame() {

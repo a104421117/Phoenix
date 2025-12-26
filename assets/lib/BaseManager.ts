@@ -1,4 +1,4 @@
-import { _decorator, CCFloat, Component, director, ISchedulable, Label, macro } from "cc";
+import { _decorator, Asset, AssetManager, assetManager, CCFloat, Component, director, ISchedulable, Label, log, macro } from "cc";
 
 const { ccclass, property } = _decorator;
 
@@ -100,5 +100,64 @@ export namespace Base {
             return `${timestamp}-${randomPart}`;
         }
     }
+    /**
+     * 載入資源config
+     * @returns 資源config
+     */
+    function LoadBundle(url: string): Promise<AssetManager.Bundle> {
+        return new Promise<AssetManager.Bundle>((resolve, reject) => {
+            assetManager.loadBundle(url, (error: Error, bundle: AssetManager.Bundle) => {
+                if (error === null) {
+                    resolve(bundle);
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+    /**
+     * 載入
+     * @param bundle 資源config
+     * @param dir 檔案位置
+     * @returns 檔案
+     */
+    function LoadObj<T extends Asset>(bundle: AssetManager.Bundle, dir: string): Promise<Array<T>> {
+        return new Promise<Array<T>>((resolve, reject) => {
+            bundle.loadDir<T>(dir, (finished: number, total: number, item: AssetManager.RequestItem) => {
+                const msg = `${bundle.name + "/" + dir + ':finished/total: ' + finished / total}`;
+                log(msg);
+            }, (error: Error, data: Array<T>) => {
+                if (error == null) {
+                    let TArr: Array<T> = [];
+                    data.forEach((e: T) => {
+                        if (e.name) {
+                            TArr.push(e);
+                        }
+                    });
+                    resolve(TArr);
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+    /**
+     * 載入
+     * @param bundleName bundle名稱
+     * @param dir 檔案位置
+     * @returns 檔案
+     */
+    export function Loading<T extends Asset>(bundleName: string, dir: string = ''): Promise<Array<T>> {
+        return new Promise<Array<T>>(async (resolve, reject) => {
+            try {
+                let bundle = await LoadBundle(bundleName);
+                let Load = await LoadObj<T>(bundle, dir);
+                resolve(Load);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
 }
+
 
