@@ -9,6 +9,7 @@ import { FlyState, Move } from '../View/Move';
 import { WebSocketManager } from '../Model/WebSocketManager';
 import { AutoManager } from '../View/AutoManager';
 import { HistoryManager } from '../View/HistoryManager';
+import { InfiniteScroll, ScrollState } from '../View/InfiniteScroll';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -88,6 +89,7 @@ export class GameManager extends Manager {
         getInstance(View.Timer).changeWagerTime(time);
         getInstance(SpineManager).eggIdle();
         getInstance(Move).state = FlyState.Reset;
+        InfiniteScroll.scrollState = ScrollState.Move;
         //時間遞減
         Base.Timer.createCountdown((t: number) => {
             getInstance(View.Timer).changeWagerTime(t);
@@ -112,6 +114,7 @@ export class GameManager extends Manager {
         getInstance(TakeOutManager).showBottomButtonPickall();
         getInstance(TakeOutManager).runTakeOut();
         getInstance(SpineManager).State = PhoenixState.Move;
+        InfiniteScroll.scrollState = ScrollState.Fly;
         Base.Timer.createCount((t: number) => {
             const runMultiple = GameModel.getFloor(t * multiple / time, 2);
             getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
@@ -145,6 +148,7 @@ export class GameManager extends Manager {
         getInstance(TakeOutManager).closeWin();
         getInstance(SpineManager).eggDie();
         getInstance(Move).state = FlyState.None;
+        // InfiniteScroll.scrollState = ScrollState.None;
         Base.Timer.createCountdown((t: number) => {
             getInstance(View.Timer).changeDeadTime(t);
         }, () => {

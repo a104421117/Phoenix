@@ -1,13 +1,20 @@
 import { _decorator, Component, Node, Sprite, UITransform, Vec2 } from 'cc';
 const { ccclass, property } = _decorator;
 
+export const enum ScrollState {
+    None,
+    Move,
+    Fly,
+}
+
 @ccclass('InfiniteScroll')
 export class InfiniteScroll extends Component {
-    @property
-    scrollSpeed: number = 100;  // 滾動速度 (像素/秒)
+    static scrollState: ScrollState = ScrollState.None;
+    private moveScrollSpeed: number = 100;  // 滾動速度 (像素/秒)
 
-    @property
-    direction: Vec2 = new Vec2(-1, 0);  // 方向：(-1,0)往左 (1,0)往右
+    private flyScrollSpeed: number = 300;  // 滾動速度 (像素/秒)
+
+    @property({ type: Vec2 }) direction: Vec2 = new Vec2(-1, 0);  // 方向：(-1,0)往左 (1,0)往右
 
     private sprite: Sprite = null;
     private uiTransform: UITransform = null;
@@ -41,11 +48,24 @@ export class InfiniteScroll extends Component {
     }
 
     update(dt: number) {
+        switch (InfiniteScroll.scrollState) {
+            case ScrollState.None:
+                break;
+            case ScrollState.Move:
+                this.move(dt, this.moveScrollSpeed);
+                break;
+            case ScrollState.Fly:
+                this.move(dt, this.flyScrollSpeed);
+                break;
+        }
+    }
+
+    move(dt: number, scrollSpeed: number) {
         if (!this.sprite || !this.sprite.spriteFrame) return;
 
         // 更新偏移量
-        this.offset.x += this.direction.x * this.scrollSpeed * dt;
-        this.offset.y += this.direction.y * this.scrollSpeed * dt;
+        this.offset.x += this.direction.x * scrollSpeed * dt;
+        this.offset.y += this.direction.y * scrollSpeed * dt;
 
         // 讓偏移量循環（避免數值過大）
         if (this.tiledWidth > 0) {

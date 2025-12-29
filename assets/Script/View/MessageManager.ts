@@ -8,15 +8,15 @@ export class MessageManager extends Manager {
     @property({ type: Node }) public messageNode: Node = null;
     // @property({ type: Label }) public messageLabel: Label = null;
     jsonData: Record<string, any> = null;
-    start() {
-        this.jsonData = this.loadMessageJson();
+    async start() {
+        this.jsonData = await this.loadMessageJson();
     }
 
     update(deltaTime: number) {
 
     }
 
-    async loadMessageJson(): Promise<Record<string, any>> {
+    private async loadMessageJson(): Promise<Record<string, any>> {
         return new Promise<Record<string, any>>(async (resolve, reject) => {
             try {
                 const jsonAsset = await Base.Loading<JsonAsset>("lang", "tch/message");
@@ -28,14 +28,26 @@ export class MessageManager extends Manager {
         });
     }
 
-    setMessage(key: string): void {
+    setMessage(key: string, variables?: Record<string, any>): void {
         if (this.jsonData && this.jsonData[key]) {
             const node = instantiate(this.messageLabelPrefab);
-            // node.
-            // this.messageLabel.string = this.jsonData[key];
+            this.messageNode.addChild(node);
+
+            const label = node.getComponent(Label);
+            const str = this.changeText(this.jsonData[key], variables);
+            label.string = str;
         } else {
             error("jsonData沒有" + key);
         }
+    }
+
+    private changeText(txt: string, variables?: Record<string, any>): string {
+        if (variables !== undefined) {
+            txt = txt.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
+                return variables[varName]?.toString() || '';
+            });
+        }
+        return txt;
     }
 }
 

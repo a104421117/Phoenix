@@ -92,7 +92,7 @@ export class SpineManager extends Manager {
         this.Phoenix.setAnimation(0, "fly", true);
     }
 
-    private moveInit: Vec2 = new Vec2(-800, -145);
+    private moveInit: Vec2 = new Vec2(0, -145);
     private moveTaget = -300;
     private moveSpeed = 100;
     private PhoenixMove(t: number): void {

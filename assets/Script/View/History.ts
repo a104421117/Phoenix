@@ -43,7 +43,7 @@ export class History extends Component {
             var index = 0;
             var color = Color.GRAY;
         } else {
-            error("下注金額不得小於等於0", number);
+            error("下注金額錯誤", number);
             return;
         }
         const spriteFrame = this.historyColor[index].topScoreboardSpriteFrame;

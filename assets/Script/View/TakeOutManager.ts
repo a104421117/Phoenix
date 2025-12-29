@@ -5,6 +5,7 @@ import { TakeOut } from 'db://assets/Script/ModelView/TakeOut';
 import { GameModel } from '../Model/Model';
 import { WebSocketManager } from '../Model/WebSocketManager';
 import { GameManager } from '../Control/GameManager';
+import { MessageManager } from './MessageManager';
 const { ccclass, property } = _decorator;
 
 type TakeOutArr = [TakeOut, TakeOut, TakeOut, TakeOut, TakeOut];
@@ -80,7 +81,6 @@ export class TakeOutManager extends Manager {
 
     public takeOut(): void {
         this.BottomButtonPickall.enabled = false;
-        this.showWin();
         this.takeOutArr.forEach((takeOut) => {
             takeOut.takeOut();
         });
@@ -158,7 +158,7 @@ export class TakeOutManager extends Manager {
         this.closeRepeatBtn();
     }
 
-    private showWin(): number {
+    private showWin(winNum: number): number {
         this.checkTakeOut();
 
         let betTotal = 0;
@@ -176,6 +176,7 @@ export class TakeOutManager extends Manager {
 
         this.winNode.active = true;
         this.takeOutArr[this.index - 1].node.addChild(this.winNode);
+        getInstance(MessageManager).setMessage("win", { win: winNum, total: this.winNum });
         return this.winNum;
     }
 
