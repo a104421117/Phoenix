@@ -49,15 +49,14 @@ export class TakeOut extends Component {
     close() {
         this.node.active = false;
         this.multiple = 0;
-        if (this.isTakeOut === true) {
+        if (this.isBetRepeat === false) {
             this.btn.enabled = false;
             this.isTakeOut = false;
         }
+        this.isBetRepeat = false;
     }
 
     show(bet: number = this.bet) {
-        this.isBetRepeat = false;
-
         this.node.active = true;
 
         this.btn.interactable = true;

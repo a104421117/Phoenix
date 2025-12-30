@@ -6,22 +6,28 @@ const { ccclass, property } = _decorator;
 
 @ccclass('RankManager')
 export class RankManager extends Manager {
-    @property({ type: Prefab }) private MidRankBackPrefab: Prefab;
-    @property({ type: Array(Rank) }) private MidRankBackRank: Rank[] = [];
     @property({ type: Node }) private rankLayout: Node;
+    @property({ type: Prefab }) private MidRankBackPrefab: Prefab;
+    @property({ type: Array(Rank) }) private MidRankBackRank: [Rank, Rank, Rank, Rank, Rank] = [
+        null, null, null, null, null
+    ];
 
     start() {
         this.initRank();
         const rankData: RankData[] = [];
+
         for (let i = 0; i < 6; i++) {
             const data: RankData = {
                 totalBet: 98765,
-                betCount: [false, false, false, false, false],
-
+                updateBet: 0,
+                betCount: [RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY],
+                multiple: 0
             }
             rankData.push(data);
         }
-        this.setRank([]);
+        this.schedule(() => {
+            this.changeRank(rankData);
+        }, 1);
     }
 
     update(deltaTime: number) {
@@ -31,7 +37,7 @@ export class RankManager extends Manager {
     initRank(rankCount: number = getInstance(ModelManager).RankModel.rankCount): void {
         for (let i = 0; i < rankCount; i++) {
             const node = instantiate(this.MidRankBackPrefab);
-            node.getComponent(Rank).H4AStr = (i + 1).toString();
+            node.getComponent(Rank).H4AStr = i + 1;
             // node.active = false;
             this.rankLayout.addChild(node);
 
@@ -40,20 +46,27 @@ export class RankManager extends Manager {
         }
     }
 
-    setRank(rankArr: RankData[]): void {
+    changeRank(rankDataArr: RankData[]): void {
+        for (let i = 0; i < this.MidRankBackRank.length; i++) {
+            const bet = rankDataArr[i].bet;
+            this.MidRankBackRank[i].H4BStr = bet;
 
+            const betCount = rankDataArr[i].betCount;
+            this.MidRankBackRank[i].BetCount = betCount;
+
+        }
     }
 }
 
 
-type RankData = {
-    totalBet: number;
-    betCount: boolean[];
+export type RankData = {
+    bet: number;
+    betCount: RankType[];
     multiple: number;
 }
 
-const enum RankType {
-    TotalBet,
-    BetCount,
-    Multiple
+export const enum RankType {
+    GRAY = 0,
+    GREEN = 1,
+    RED = 2
 }

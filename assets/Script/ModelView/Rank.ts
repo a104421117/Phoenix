@@ -1,10 +1,12 @@
-import { _decorator, Component, instantiate, Label, Node, Prefab, Sprite, SpriteFrame } from 'cc';
+import { _decorator, Component, instantiate, Label, Layers, Node, Prefab, Sprite, SpriteFrame } from 'cc';
 import { getInstance } from '../../lib/BaseManager';
 import { ModelManager } from '../Model/ModelManager';
-import { Star } from './Star';
+import { GameModel } from '../Model/Model';
+import { RankType } from '../View/RankManager';
 const { ccclass, property } = _decorator;
 
-type StarArr = [Star, Star, Star, Star, Star];
+type StarSprite = [Sprite, Sprite, Sprite, Sprite, Sprite];
+type StarSpriteFrame = [SpriteFrame, SpriteFrame, SpriteFrame];
 
 @ccclass('Rank')
 export class Rank extends Component {
@@ -15,11 +17,12 @@ export class Rank extends Component {
     @property({ type: Label }) private nameLabel: Label = null;
     @property({ type: Label }) private H4B: Label = null;
     @property({ type: Node }) private rankLayout: Node = null;
-    @property({ type: Prefab }) private MidFrameRankStar: Prefab = null;
-    @property({ type: Array(Star), readonly: true }) private starArr: StarArr = [
-        new Star(), new Star(), new Star(), new Star(), new Star()
+    // @property({ type: Prefab }) private MidFrameRankStar: Prefab = null;
+    @property({ type: Array(Sprite), readonly: true }) private starSpriteArr: StarSprite = [
+        new Sprite(), new Sprite(), new Sprite(), new Sprite(), new Sprite()
     ];
-
+    @property({ type: SpriteFrame }) starSpriteFrameArr: StarSpriteFrame = [null, null, null];
+    betCount: RankType[] = [];
     start() {
         //下注數量,若要有後台設定則要傳資料進來
         this.initRank();
@@ -29,18 +32,48 @@ export class Rank extends Component {
 
     }
 
-    initRank(betCountMax: number = getInstance(ModelManager).BetModel.betCountMax): void {
+    private initRank(betCountMax: number = getInstance(ModelManager).BetModel.betCountMax): void {
         for (let i = 0; i < betCountMax; i++) {
-            const node = instantiate(this.MidFrameRankStar);
+            const node = new Node();
+            node.active = false;
             this.rankLayout.addChild(node);
+            const layerIndex = Layers.nameToLayer("UI");
+            const layer = 1 << layerIndex;
+            node.layer = layer;
 
-            const star: Star = node.getComponent(Star);
-            this.starArr[i] = star;
+            const starSprite: Sprite = node.addComponent(Sprite);
+            this.starSpriteArr[i] = starSprite;
         }
     }
 
-    set H4AStr(value: string) {
-        this.H4A.string = value;
+    set H4AStr(H4A: number) {
+        const H4AStr = H4A.toString();
+        this.H4A.string = H4AStr;
+    }
+
+    set H4BStr(H4B: number) {
+        const H4BStr = GameModel.getFloor(H4B).toString();
+        this.H4B.string = H4BStr;
+    }
+
+    set BetCount(betCount: RankType[]) {
+        if (this.betCount !== betCount) {
+            for (let i = 0; i < this.starSpriteArr.length; i++) {
+                const starSprite = this.starSpriteArr[i];
+                const starSpriteFrameIndex = betCount[i];
+                if (starSpriteFrameIndex !== undefined) {
+                    starSprite.node.active = true;
+                    starSprite.spriteFrame = this.starSpriteFrameArr[betCount[i]];
+                } else {
+                    starSprite.node.active = false;
+                }
+            }
+            this.betCount = betCount;
+        }
+    }
+
+    set Multiple(multiple: number) {
+
     }
 }
 

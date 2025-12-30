@@ -1,0 +1,48 @@
+table_Phoenix.png
+size:1024,1024
+filter:Linear,Linear
+pma:true
+crash_cloud
+bounds:723,205,262,110
+phoenix_01
+bounds:514,175,208,140
+offsets:7,9,221,182
+phoenix_02
+bounds:514,51,198,123
+offsets:16,2,221,182
+phoenix_03
+bounds:316,36,185,126
+offsets:20,2,221,182
+phoenix_04
+bounds:316,163,197,152
+offsets:15,15,221,182
+phoenix_05
+bounds:723,82,200,122
+offsets:17,16,221,182
+phoenix_06
+bounds:0,6,204,118
+offsets:16,19,221,182
+table_crash_base
+bounds:0,125,315,339
+offsets:0,2,315,341
+table_crash_cover
+bounds:0,511,256,182
+圖層 10
+bounds:713,26,212,55
+圖層 10 拷貝
+bounds:316,316,544,148
+圖層 11
+bounds:468,0,193,50
+圖層 12
+bounds:861,406,94,58
+圖層 13
+bounds:293,710,141,45
+圖層 14
+bounds:435,715,83,40
+圖層 15
+bounds:519,715,23,40
+offsets:1,1,25,43
+圖層 9
+bounds:0,694,303,61
+圖層 9 拷貝
+bounds:296,465,728,241

@@ -1,0 +1,41 @@
+# name: Build and Deploy Cocos Creator
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # 1. 取得程式碼
+#       - name: Checkout
+#         uses: actions/checkout@v4
+#         with:
+#           lfs: true  # 如果用 Git LFS
+
+#       # 2. 使用 Cocos Creator Docker
+#       - name: Build with Cocos Creator
+#         run: |
+#           docker run --rm \
+#             -v ${{ github.workspace }}:/project \
+#             peteward/cocos-creator:3.8.5 \
+#             /opt/CocosCreator/Creator/3.8.5/CocosCreator.app/Contents/MacOS/CocosCreator \
+#             --project /project \
+#             --build "platform=web-mobile;buildPath=/project/build;debug=false"
+
+#       # 3. 上傳建置產物
+#       - name: Upload artifact
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: web-mobile-build
+#           path: build/web-mobile/
+
+#       # 4. 部署到 GitHub Pages
+#       - name: Deploy to GitHub Pages
+#         uses: peaceiris/actions-gh-pages@v3
+#         with:
+#           github_token: ${{ secrets.GITHUB_TOKEN }}
+#           publish_dir: ./build/web-mobile

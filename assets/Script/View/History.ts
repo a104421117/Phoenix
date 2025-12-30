@@ -39,7 +39,7 @@ export class History extends Component {
         } else if (number > 1) {
             var index = 1;
             var color = Color.GREEN;
-        } else if (number > 0) {
+        } else if (number >= 0) {
             var index = 0;
             var color = Color.GRAY;
         } else {

@@ -410,8 +410,6 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "moveScrollSpeed": 100,
-    "flyScrollSpeed": 200,
     "direction": {
       "__type__": "cc.Vec2",
       "x": -1,
@@ -759,8 +757,6 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "moveScrollSpeed": 100,
-    "flyScrollSpeed": 200,
     "direction": {
       "__type__": "cc.Vec2",
       "x": -1,
@@ -890,8 +886,6 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "moveScrollSpeed": 100,
-    "flyScrollSpeed": 200,
     "direction": {
       "__type__": "cc.Vec2",
       "x": -1,
@@ -11023,7 +11017,7 @@
         "__id__": 281
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 284
@@ -11432,7 +11426,7 @@
         "__id__": 291
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 294

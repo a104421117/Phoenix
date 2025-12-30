@@ -1,0 +1,11 @@
+club_BG.png
+size:4096,2048
+filter:Linear,Linear
+club_bg
+bounds:2,787,2560,1080
+light
+bounds:787,584,201,201
+shine
+bounds:2,2,783,783
+spotlight
+bounds:2564,1615,252,252

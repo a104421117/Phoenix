@@ -99,8 +99,9 @@ export class TakeOutManager extends Manager {
 
     private repeatBet(): void {
         this.closeRepeatBtn();
-        this.takeOutArr.forEach((takeOut) => {
+        this.takeOutArr.forEach((takeOut, index) => {
             if (takeOut.bet > 0) {
+                console.log("index:" + index);
                 takeOut.isBetRepeat = true;
                 takeOut.show();
             }
@@ -143,10 +144,10 @@ export class TakeOutManager extends Manager {
     }
 
     public closeTakeOut() {
-        this.index = 0;
         this.takeOutArr.forEach((takeOut) => {
             takeOut.close();
         });
+        this.index = 0;
     }
 
     public resetTakeOut() {

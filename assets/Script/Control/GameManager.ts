@@ -148,14 +148,14 @@ export class GameManager extends Manager {
         getInstance(TakeOutManager).closeWin();
         getInstance(SpineManager).eggDie();
         getInstance(Move).state = FlyState.None;
-        // InfiniteScroll.scrollState = ScrollState.None;
+        InfiniteScroll.scrollState = ScrollState.Move;
         Base.Timer.createCountdown((t: number) => {
             getInstance(View.Timer).changeDeadTime(t);
         }, () => {
             getInstance(View.Timer).closeDeadTime();
             getInstance(View.Multiple).closemultipleLabel();
-            getInstance(TakeOutManager).closeTakeOut();
             getInstance(TakeOutManager).resetTakeOut();
+            getInstance(TakeOutManager).closeTakeOut();
             this.GameState = GameState.Idle;
         }, time, this.GameState, 1);
     }
