@@ -1,4 +1,4 @@
-import { _decorator, Component, instantiate, Node, Prefab } from 'cc';
+import { _decorator, Component, instantiate, Node, Prefab, SpriteFrame } from 'cc';
 import { getInstance, Manager } from '../../lib/BaseManager';
 import { ModelManager } from '../Model/ModelManager';
 import { Rank } from '../ModelView/Rank';
@@ -14,20 +14,6 @@ export class RankManager extends Manager {
 
     start() {
         this.initRank();
-        const rankData: RankData[] = [];
-
-        for (let i = 0; i < 6; i++) {
-            const data: RankData = {
-                totalBet: 98765,
-                updateBet: 0,
-                betCount: [RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY],
-                multiple: 0
-            }
-            rankData.push(data);
-        }
-        this.schedule(() => {
-            this.changeRank(rankData);
-        }, 1);
     }
 
     update(deltaTime: number) {
@@ -43,26 +29,33 @@ export class RankManager extends Manager {
 
             const rank = node.getComponent(Rank);
             this.MidRankBackRank.push(rank);
+            rank._MidRankBackSprite = i % 2;
         }
     }
 
     changeRank(rankDataArr: RankData[]): void {
         for (let i = 0; i < this.MidRankBackRank.length; i++) {
+            const spriteFrame = rankDataArr[i].spriteFrame;
+            this.MidRankBackRank[i].PlayerSprite = spriteFrame;
+
             const bet = rankDataArr[i].bet;
             this.MidRankBackRank[i].H4BStr = bet;
 
             const betCount = rankDataArr[i].betCount;
             this.MidRankBackRank[i].BetCount = betCount;
 
+            const multiple = rankDataArr[i].multiple;
+            this.MidRankBackRank[i].Multiple = multiple;
         }
     }
 }
 
 
 export type RankData = {
+    spriteFrame: SpriteFrame;
     bet: number;
     betCount: RankType[];
-    multiple: number;
+    multiple?: number;
 }
 
 export const enum RankType {

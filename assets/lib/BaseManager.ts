@@ -21,7 +21,7 @@ export class Manager extends Component {
             Manager.instanceMap.set(classname, this);
             director.addPersistRootNode(this.node);
         } else {
-            this.destroy();
+            this.node.destroy();
         }
     }
 }

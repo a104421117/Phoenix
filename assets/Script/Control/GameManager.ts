@@ -10,6 +10,7 @@ import { WebSocketManager } from '../Model/WebSocketManager';
 import { AutoManager } from '../View/AutoManager';
 import { HistoryManager } from '../View/HistoryManager';
 import { InfiniteScroll, ScrollState } from '../View/InfiniteScroll';
+import { RankData, RankManager, RankType } from '../View/RankManager';
 const { ccclass, property } = _decorator;
 
 enum GameState {
@@ -36,9 +37,9 @@ export class GameManager extends Manager {
     }
 
     async start() {
-        // game.frameRate = 30;
         // const socketUrl = "ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A";
-        const socketUrl = "";
+        const socketUrl = "http://localhost:8080/";
+        // const socketUrl = "";
         getInstance(WebSocketManager).createrSocket(socketUrl, () => {
             this.GameState = GameState.Idle;
         });
@@ -58,7 +59,9 @@ export class GameManager extends Manager {
                 this.Wager(model.Wager.wagerTime);
                 break;
             case GameState.Run:
-                this.Run(10, 5, 0.05);
+                const multiple = GameModel.getFloor(Math.random() * 25, 2);
+                const runTime = multiple * 4;
+                this.Run(runTime, multiple, 0.05);
                 break;
             case GameState.Dead:
                 this.Dead(model.Wager.deadTime);
@@ -107,6 +110,16 @@ export class GameManager extends Manager {
      * @param deltaTime 倍數更新速率
      */
     private Run(time: number, multiple: number, deltaTime: number): void {
+        const rankData: RankData[] = [];
+        for (let i = 0; i < 6; i++) {
+            const data: RankData = {
+                spriteFrame: null,
+                bet: 0,
+                betCount: [RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY],
+                multiple: 0
+            }
+            rankData.push(data);
+        }
         getInstance(View.Multiple).showMultiple();
         getInstance(View.Multiple).changeMultiple(0);
         getInstance(View.Bet).closeBetNode();
@@ -123,6 +136,11 @@ export class GameManager extends Manager {
             if (runMultiple >= getInstance(AutoManager).CashOutNum) {
                 getInstance(TakeOutManager).takeOut();
             }
+            rankData.forEach((rank) => {
+                rank.bet++;
+                rank.multiple = 0;
+            });
+            getInstance(RankManager).changeRank(rankData);
         }, () => {
             getInstance(AutoManager).minusRunCount();
             getInstance(ModelManager).MultipleModel.runMultiple = multiple;

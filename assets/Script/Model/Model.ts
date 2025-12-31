@@ -61,6 +61,22 @@ export namespace GameModel {
         const number = Math.floor(num * factor) / factor;
         return number;
     }
+
+    export function formatNum(num: number, decimalPlaces: number = 0): string {
+        const absNum = Math.abs(num);
+        const sign = num < 0 ? '-' : '';
+
+        if (absNum >= 100000000) {
+            // 億
+            return sign + GameModel.getFloor(absNum / 100000000, decimalPlaces) + 'e';
+        } else if (absNum >= 10000) {
+            // 萬
+            return sign + GameModel.getFloor(absNum / 10000, decimalPlaces) + 'w';
+        } else {
+            // 原數字（加千分位）
+            return sign + absNum.toLocaleString();
+        }
+    }
 }
 
 @ccclass('StateModel')
