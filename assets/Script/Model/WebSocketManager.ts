@@ -1,4 +1,4 @@
-import { _decorator, Component, JsonAsset, Node } from 'cc';
+import { _decorator, Component, error, JsonAsset, log, Node } from 'cc';
 import { Manager } from '../../lib/BaseManager';
 const { ccclass, property } = _decorator;
 
@@ -13,15 +13,16 @@ export class WebSocketManager extends Manager {
 
     }
 
-    public createrSocket(socketUrl: string, callback: Function) {
+    public createrSocket(socketUrl: string, token: string, callback: Function) {
         // this.scheduleOnce(() => {
         //     callback(true);
         // }, 1);
 
-        this.webSocket = new WebSocket(socketUrl);
+        this.webSocket = new WebSocket(`${socketUrl}?token=${token}`);
 
-        this.webSocket.onopen = () => {
-            console.log('已連接');
+        this.webSocket.onopen = (event) => {
+            log('已連接');
+            // this.webSocket.send("hello");
             callback(true);
         };
 
@@ -30,14 +31,14 @@ export class WebSocketManager extends Manager {
             this.receiveSocket(message);
         };
 
-        this.webSocket.onclose = () => {
+        this.webSocket.onclose = (event) => {
             callback(false);
-            console.log('連接關閉');
+            log('連接關閉');
         };
 
-        this.webSocket.onerror = (error) => {
+        this.webSocket.onerror = (event) => {
             callback(false);
-            console.error('錯誤:', error);
+            console.error(event);
         };
     }
 

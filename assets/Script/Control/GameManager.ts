@@ -38,9 +38,10 @@ export class GameManager extends Manager {
 
     async start() {
         // const socketUrl = "ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A";
-        const socketUrl = "http://localhost:8080/";
+        const socketUrl = "wss://localhost:7070/ws";
         // const socketUrl = "";
-        getInstance(WebSocketManager).createrSocket(socketUrl, () => {
+        const token = "abc";
+        getInstance(WebSocketManager).createrSocket(socketUrl, token, () => {
             this.GameState = GameState.Idle;
         });
     }
