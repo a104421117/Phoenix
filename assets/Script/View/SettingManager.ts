@@ -1,4 +1,4 @@
-import { _decorator, Button, Component, director, Node, PageView } from 'cc';
+import { _decorator, Button, Component, director, Node, PageView, WebView } from 'cc';
 const { ccclass, property } = _decorator;
 
 @ccclass('SettingManager')
@@ -13,7 +13,9 @@ export class SettingManager extends Component {
 
     @property({ type: Button }) private recordBtn: Button;
     @property({ type: Node }) private MenuDecorateBackgroundC: Node;
+    @property({ type: WebView }) private webView: WebView;
     @property({ type: Button }) private MenuBottonCloseCBtn: Button;
+    @property({ type: Node }) private loadPic: Node;
 
     @property({ type: Button }) private settingBtn: Button;
     @property({ type: Node }) private MenuDecorateBackgroundD: Node;
@@ -53,13 +55,22 @@ export class SettingManager extends Component {
 
         this.MenuBottonCloseABtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundA.bind(this), this);
         this.MenuBottonCloseBBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundB.bind(this), this);
-        this.MenuBottonCloseCBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundC.bind(this), this);
+        // this.MenuBottonCloseCBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundC.bind(this), this);
         this.MenuBottonCloseDBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundD.bind(this), this);
         this.MenuBottonCloseEBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundE.bind(this), this);
         this.MenuBottonCloseFBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundF.bind(this), this);
 
         this.leaveCancelBtn.node.on(Button.EventType.CLICK, this.closeMenuDecorateBackgroundE.bind(this), this);
         this.leaveCheckBtn.node.on(Button.EventType.CLICK, this.leaveGame.bind(this), this);
+
+        window.addEventListener("message", (event) => {
+            if (event.data.type === "closeHistoryPanel") {
+                this.closeMenuDecorateBackgroundC();
+            }
+        });
+        this.webView.node.on(WebView.EventType.LOADED, (() => {
+            this.loadPic.active = false;
+        }));
     }
 
     update(deltaTime: number) {
@@ -87,6 +98,9 @@ export class SettingManager extends Component {
 
     openMenuDecorateBackgroundC() {
         this.MenuDecorateBackgroundC.active = true;
+        this.webView.url = "http://127.0.0.1:5500/";
+        this.loadPic.active = true;
+        // this.webView
     }
 
     closeMenuDecorateBackgroundC() {
