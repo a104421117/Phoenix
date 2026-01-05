@@ -1,9 +1,11 @@
-name: Build and Deploy Cocos Creator
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'build/web-mobile/**'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -25,28 +27,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install Cocos Creator
-        run: |
-          # 下載 Cocos Creator 3.8.7 Linux 版
-          wget -q https://github.com/nicholasopuni31/cocos-bin-linux/releases/download/v3.8.7/CocosCreator-v3.8.7_linux_x64.tar.xz
-          tar -xf CocosCreator-v3.8.7_linux_x64.tar.xz
-          chmod +x CocosCreator/CocosCreator
-
-      - name: Build Web Mobile
-        run: |
-          # 使用 xvfb 提供虛擬顯示環境
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxshmfence1
-
-          xvfb-run --auto-servernum ./CocosCreator/CocosCreator --project . --build "platform=web-mobile;buildPath=./build;debug=false" --headless
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
