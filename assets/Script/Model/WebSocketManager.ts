@@ -14,32 +14,32 @@ export class WebSocketManager extends Manager {
     }
 
     public createrSocket(socketUrl: string, token: string, callback: Function) {
-        // this.scheduleOnce(() => {
-        //     callback(true);
-        // }, 1);
-
-        this.webSocket = new WebSocket(`${socketUrl}?token=${token}`);
-
-        this.webSocket.onopen = (event) => {
-            log('已連接');
-            // this.webSocket.send("hello");
+        this.scheduleOnce(() => {
             callback(true);
-        };
+        }, 1);
 
-        this.webSocket.onmessage = (event) => {
-            const message: string = event.data;
-            this.receiveSocket(message);
-        };
+        // this.webSocket = new WebSocket(`${socketUrl}?token=${token}`);
 
-        this.webSocket.onclose = (event) => {
-            callback(false);
-            log('連接關閉');
-        };
+        // this.webSocket.onopen = (event) => {
+        //     log('已連接');
+        //     // this.webSocket.send("hello");
+        //     callback(true);
+        // };
 
-        this.webSocket.onerror = (event) => {
-            callback(false);
-            console.error(event);
-        };
+        // this.webSocket.onmessage = (event) => {
+        //     const message: string = event.data;
+        //     this.receiveSocket(message);
+        // };
+
+        // this.webSocket.onclose = (event) => {
+        //     callback(false);
+        //     log('連接關閉');
+        // };
+
+        // this.webSocket.onerror = (event) => {
+        //     callback(false);
+        //     console.error(event);
+        // };
     }
 
     private sendSocket<T>(message: SocketMassage<T>) {

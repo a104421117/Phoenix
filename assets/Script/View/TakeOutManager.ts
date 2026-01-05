@@ -118,11 +118,11 @@ export class TakeOutManager extends Manager {
     }
 
     public showRepeatBtn(): void {
-        this.takeOutArr.forEach((takeOut) => {
-            if (takeOut.IsShow) {
-                this.repeatBtn.node.active = true;
-            }
-        });
+        // this.takeOutArr.forEach((takeOut) => {
+        //     if (takeOut.IsShow) {
+        //         this.repeatBtn.node.active = true;
+        //     }
+        // });
     }
 
     public closeRepeatBtn(): void {

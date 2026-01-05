@@ -36,13 +36,12 @@ export namespace Base {
         private static timeMap = new Map<string, ISchedulable>();
         public static createCountdown(onTick: Function, onComplete: Function, time: number, id: string = "Countdown", deltaTime: number = 1,): TimeObj {
             let timer = time;
-            const timeMap = this.timeMap;
             const uuid = UIDUtils.generateUID();
             const target: ISchedulable = {
                 id: id,
                 uuid: uuid
             };
-            let tick = function () {
+            const tick = function () {
                 timer -= deltaTime;
                 if (timer > 0) {
                     if (onTick) onTick(timer);
@@ -51,7 +50,7 @@ export namespace Base {
                 }
             }
             director.getScheduler().schedule(tick, target, deltaTime);
-            timeMap.set(uuid, target);
+            this.timeMap.set(uuid, target);
             const timeObj: TimeObj = {
                 uuid: uuid,
                 function: tick
@@ -60,13 +59,12 @@ export namespace Base {
         }
         public static createCount(onTick: Function, onComplete: Function, time: number, id: string = "Count", deltaTime: number = 1): TimeObj {
             let count = 0;
-            const timeMap = this.timeMap;
             const uuid = UIDUtils.generateUID();
             const target: ISchedulable = {
                 id: id,
                 uuid: uuid
             }
-            let tick = function () {
+            const tick = function () {
                 count += deltaTime;
                 if (count > time) {
                     Timer.stopTimer(timeObj, onComplete);
@@ -75,7 +73,7 @@ export namespace Base {
                 }
             }
             director.getScheduler().schedule(tick, target, deltaTime);
-            timeMap.set(uuid, target);
+            this.timeMap.set(uuid, target);
             const timeObj: TimeObj = {
                 uuid: uuid,
                 function: tick
