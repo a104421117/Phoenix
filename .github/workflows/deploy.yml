@@ -27,6 +27,11 @@ jobs:
           & "C:\ProgramData\cocos\editors\Creator\3.8.7\CocosCreator.exe" --project . --build "platform=web-mobile;debug=false"
         shell: powershell
 
+      - name: List build output
+        run: |
+          Get-ChildItem -Path . -Recurse -Directory | Where-Object { $_.Name -eq "build" -or $_.FullName -match "build" } | ForEach-Object { Get-ChildItem $_.FullName -Recurse }
+        shell: powershell
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
