@@ -24,10 +24,19 @@ jobs:
 
       - name: Build Web Mobile
         run: |
-          & "C:\ProgramData\cocos\editors\Creator\3.8.7\CocosCreator.exe" --project . --build "platform=web-mobile;debug=false"
-          Start-Sleep -Seconds 10
+          $process = Start-Process -FilePath "C:\ProgramData\cocos\editors\Creator\3.8.7\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false" -PassThru -Wait -NoNewWindow
+          Write-Host "Build process exited with code: $($process.ExitCode)"
+          # Wait for file system to settle
+          Start-Sleep -Seconds 15
+          # Check if build succeeded
+          if (Test-Path "build/web-mobile/index.html") {
+            Write-Host "Build successful - index.html found"
+          } else {
+            Write-Host "Build may have failed - index.html not found"
+            exit 1
+          }
         shell: powershell
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: List build output
         run: |
