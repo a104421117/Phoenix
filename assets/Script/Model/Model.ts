@@ -1,4 +1,4 @@
-import { _decorator, CCBoolean, CCFloat, CCInteger, CCString } from 'cc';
+import { _decorator, CCBoolean, CCFloat, CCInteger, CCString, EPSILON } from 'cc';
 
 const { ccclass, property } = _decorator;
 
@@ -75,6 +75,22 @@ export namespace GameModel {
         } else {
             // 原數字（加千分位）
             return sign + absNum.toLocaleString();
+        }
+    }
+
+    function getFormatNum(num: number): string {
+        const absNum = Math.abs(num);
+        const sign = num < 0 ? '-' : '';
+
+        if (absNum >= 100000) {
+            // 十萬
+            return sign + getThousandth(absNum / 100000) + 'K';
+        } else if (absNum < 10) {
+            // 個位數
+            return sign + getFloor(absNum, 2) + 'w';
+        } else {
+            // 原數字（加千分位）
+            return sign + getThousandth(absNum);
         }
     }
 }

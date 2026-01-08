@@ -1,11 +1,9 @@
-name: Deploy to GitHub Pages
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'build/web-mobile/**'
   workflow_dispatch:
 
 permissions:
@@ -18,23 +16,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-
+  build:
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build Web Mobile
+        run: |
+          & "C:\CocosDashboard\resources\.editors\Creator\3.8.7\CocosCreator.exe" --project . --build "platform=web-mobile;debug=false"
+        shell: pwsh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-mobile-build
+          path: build/web-mobile
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-mobile-build
+          path: build/web-mobile
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload artifact
+      - name: Upload to Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'build/web-mobile'
+          path: build/web-mobile
 
       - name: Deploy to GitHub Pages
         id: deployment
