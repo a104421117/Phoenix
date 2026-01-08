@@ -25,11 +25,20 @@ jobs:
       - name: Build Web Mobile
         run: |
           & "C:\ProgramData\cocos\editors\Creator\3.8.7\CocosCreator.exe" --project . --build "platform=web-mobile;debug=false"
+          Start-Sleep -Seconds 10
         shell: powershell
+        timeout-minutes: 10
 
       - name: List build output
         run: |
-          Get-ChildItem -Path . -Recurse -Directory | Where-Object { $_.Name -eq "build" -or $_.FullName -match "build" } | ForEach-Object { Get-ChildItem $_.FullName -Recurse }
+          Write-Host "Current directory: $(Get-Location)"
+          Get-ChildItem -Force
+          if (Test-Path "build") {
+            Write-Host "Build folder contents:"
+            Get-ChildItem "build" -Recurse
+          } else {
+            Write-Host "build folder not found"
+          }
         shell: powershell
 
       - name: Upload build artifact
