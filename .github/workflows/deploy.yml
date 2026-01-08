@@ -25,7 +25,7 @@ jobs:
       - name: Build Web Mobile
         run: |
           & "C:\CocosDashboard\resources\.editors\Creator\3.8.7\CocosCreator.exe" --project . --build "platform=web-mobile;debug=false"
-        shell: pwsh
+        shell: powershell
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
