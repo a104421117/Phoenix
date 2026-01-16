@@ -74,5 +74,5 @@ jobs:
           username: ${{ secrets.SFTP_USERNAME }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          local_path: ./game/*
+          local_path: ./build/web-mobile/*
           remote_path: ${{ secrets.SFTP_REMOTE_PATH }}
