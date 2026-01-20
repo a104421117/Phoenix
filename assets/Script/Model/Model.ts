@@ -93,6 +93,44 @@ export namespace GameModel {
             return sign + getThousandth(absNum);
         }
     }
+
+    /**
+     * Crash 遊戲指數曲線
+     * 公式: multiplier = e^(growthRate * t)
+     * @param elapsedTime 已經過的時間（秒）
+     * @param targetMultiple 目標倍數（crash 時的倍數）
+     * @param totalTime 總時間（秒）
+     * @param decimalPlaces 小數位數
+     * @returns 當前倍數
+     */
+    export function getCrashMultiplier(
+        elapsedTime: number,
+        targetMultiple: number,
+        totalTime: number,
+        decimalPlaces: number = 2
+    ): number {
+        // 計算增長率: ln(targetMultiple) / totalTime
+        const growthRate = Math.log(targetMultiple) / totalTime;
+        // 指數曲線: e^(growthRate * t)
+        const multiplier = Math.exp(growthRate * elapsedTime);
+        return getFloor(multiplier, decimalPlaces);
+    }
+
+    /**
+     * 根據倍數反推時間（用於計算特定倍數需要多少時間）
+     * @param targetMultiple 目標倍數
+     * @param crashMultiple crash 倍數
+     * @param totalTime 總時間
+     * @returns 到達目標倍數所需的時間
+     */
+    export function getTimeForMultiplier(
+        targetMultiple: number,
+        crashMultiple: number,
+        totalTime: number
+    ): number {
+        const growthRate = Math.log(crashMultiple) / totalTime;
+        return Math.log(targetMultiple) / growthRate;
+    }
 }
 
 @ccclass('StateModel')

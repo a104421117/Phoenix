@@ -130,7 +130,8 @@ export class GameManager extends Manager {
         getInstance(SpineManager).State = PhoenixState.Move;
         InfiniteScroll.scrollState = ScrollState.Fly;
         Base.Timer.createCount((t: number) => {
-            const runMultiple = GameModel.getFloor(t * multiple / time, 2);
+            // 使用指數曲線計算倍數
+            const runMultiple = GameModel.getCrashMultiplier(t, multiple, time, 2);
             getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
             getInstance(View.Multiple).changeMultiple(runMultiple);
             getInstance(TakeOutManager).changeTakeOut(runMultiple);
