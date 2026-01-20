@@ -49,6 +49,11 @@ jobs:
           :: --build: configPath points to the exported JSON
           %COCOS_EXE% --project . --build "configPath=./buildConfig_web.json"
 
+      - name: List Build Output
+        run: |
+          echo "=== Build directory contents ==="
+          dir build /s /b 2>nul || echo "build folder not found"
+
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:

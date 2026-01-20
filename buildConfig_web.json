@@ -1,6 +1,6 @@
 {
   "platform": "web-mobile",
-  "buildPath": "build",
+  "buildPath": "project://build",
   "debug": false,
   "sourceMaps": false,
   "mainBundleCompressionType": "merge_dep",
