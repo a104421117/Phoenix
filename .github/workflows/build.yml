@@ -21,14 +21,18 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Cache Cocos Creator Editor
+        uses: actions/cache@v4
+        id: cocos-cache
+        with:
+          path: ./CocosEditor
+          key: cocos-creator-3.8.7
+
       - name: Download Cocos Creator Editor
-        shell: powershell
+        if: steps.cocos-cache.outputs.cache-hit != 'true'
         run: |
-          # Example for Cocos Creator 3.8.7. Replace URL with your version.
-          $url = "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
-          $dest = "CocosCreator.zip"
-          Invoke-WebRequest -Uri $url -OutFile $dest
-          Expand-Archive -Path $dest -DestinationPath ./CocosEditor
+          curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
+          7z x CocosCreator.zip -oCocosEditor
 
       - name: Cocos CLI Build
         shell: cmd
