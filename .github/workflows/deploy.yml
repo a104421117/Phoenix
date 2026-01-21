@@ -1,0 +1,83 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Web Mobile
+        run: |
+          $process = Start-Process -FilePath "C:\ProgramData\cocos\editors\Creator\3.8.7\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false" -PassThru -Wait -NoNewWindow
+          Write-Host "Build process exited with code: $($process.ExitCode)"
+          # Wait for file system to settle
+          Start-Sleep -Seconds 15
+          # Check if build succeeded
+          if (Test-Path "build/web-mobile/index.html") {
+            Write-Host "Build successful - index.html found"
+          } else {
+            Write-Host "Build may have failed - index.html not found"
+            exit 1
+          }
+        shell: powershell
+        timeout-minutes: 15
+
+      - name: List build output
+        run: |
+          Write-Host "Current directory: $(Get-Location)"
+          Get-ChildItem -Force
+          if (Test-Path "build") {
+            Write-Host "Build folder contents:"
+            Get-ChildItem "build" -Recurse
+          } else {
+            Write-Host "build folder not found"
+          }
+        shell: powershell
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-mobile-build
+          path: build/web-mobile
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-mobile-build
+          path: build/web-mobile
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-mobile
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
