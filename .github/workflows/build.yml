@@ -37,11 +37,15 @@ jobs:
 
       - name: Cocos CLI Build
         shell: cmd
+        timeout-minutes: 30
         env:
           COCOS_USER: ${{ secrets.COCOS_USER }}
           COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
           set COCOS_EXE=.\CocosEditor\CocosCreator.exe
+          echo === Logging in to Cocos ===
+          %COCOS_EXE% --login "%COCOS_USER%" "%COCOS_PWD%"
+          echo === Starting build ===
           %COCOS_EXE% --project . --build "configPath=./buildConfig_web.json"
 
       - name: List Build Output
