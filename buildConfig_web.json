@@ -5,5 +5,5 @@
   "sourceMaps": false,
   "mainBundleCompressionType": "merge_dep",
   "mainBundleIsRemote": false,
-  "startScene": "db://assets/Scene/LoadScene.scene"
+  "startScene": "ffa0bacc-562c-403f-8fb5-2a94021a3dd3"
 }
