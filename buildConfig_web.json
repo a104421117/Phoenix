@@ -1,9 +1,0 @@
-{
-  "platform": "web-mobile",
-  "buildPath": "project://build",
-  "debug": false,
-  "sourceMaps": false,
-  "mainBundleCompressionType": "merge_dep",
-  "mainBundleIsRemote": false,
-  "startScene": "ffa0bacc-562c-403f-8fb5-2a94021a3dd3"
-}

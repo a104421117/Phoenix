@@ -43,10 +43,8 @@ jobs:
           COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
           set COCOS_EXE=.\CocosEditor\CocosCreator.exe
-          echo === Logging in to Cocos ===
-          %COCOS_EXE% --login "%COCOS_USER%" "%COCOS_PWD%"
           echo === Starting build ===
-          %COCOS_EXE% --project . --build "configPath=./buildConfig_web.json"
+          %COCOS_EXE% --project . --build "platform=web-mobile;debug=false" --login "%COCOS_USER%" "%COCOS_PWD%"
 
       - name: List Build Output
         run: |
