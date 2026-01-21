@@ -38,20 +38,32 @@ jobs:
           dir CocosEditor
 
       - name: Cocos CLI Build
-        shell: cmd
+        shell: powershell
         timeout-minutes: 30
         env:
           COCOS_USER: ${{ secrets.COCOS_USER }}
           COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
-          set COCOS_EXE=.\CocosEditor\CocosCreator.exe
-          echo === Starting build ===
-          %COCOS_EXE% --project . --build "platform=web-mobile;debug=false" --login "%COCOS_USER%" "%COCOS_PWD%"
+          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false", "--login", "$env:COCOS_USER", "$env:COCOS_PWD" -PassThru -Wait -NoNewWindow
+          Write-Host "Build process exited with code: $($process.ExitCode)"
+          Start-Sleep -Seconds 15
+          if (Test-Path "build/web-mobile/index.html") {
+            Write-Host "Build successful - index.html found"
+          } else {
+            Write-Host "Build may have failed - index.html not found"
+            exit 1
+          }
 
       - name: List Build Output
+        shell: powershell
         run: |
-          echo "=== Build directory contents ==="
-          dir build /s /b 2>nul || echo "build folder not found"
+          Write-Host "Current directory: $(Get-Location)"
+          if (Test-Path "build") {
+            Write-Host "Build folder contents:"
+            Get-ChildItem "build" -Recurse
+          } else {
+            Write-Host "build folder not found"
+          }
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
