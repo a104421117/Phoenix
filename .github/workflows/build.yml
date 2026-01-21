@@ -1,4 +1,4 @@
-name: Cocos Creator Build
+name: Cocos Creator Build & Deploy
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ==================== Build Job ====================
   build-web:
     runs-on: windows-latest
 
@@ -16,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Cocos 3.x standard
+          node-version: '18'
 
       - name: Install Dependencies
         run: npm install
@@ -37,16 +38,10 @@ jobs:
       - name: Cocos CLI Build
         shell: cmd
         env:
-          # If your build requires login, use these (optional for some setups)
           COCOS_USER: ${{ secrets.COCOS_USER }}
           COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
-          :: Path to the editor executable
           set COCOS_EXE=.\CocosEditor\CocosCreator.exe
-
-          :: Build Command
-          :: --project: Project path
-          :: --build: configPath points to the exported JSON
           %COCOS_EXE% --project . --build "configPath=./buildConfig_web.json"
 
       - name: List Build Output
@@ -58,4 +53,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web-mobile-build
-          path: build/web-mobile/ # Matches the output path in your JSON
+          path: build/web-mobile/
+
+  # ==================== Deploy Job ====================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-web
+
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-mobile-build
+          path: build/web-mobile
+
+      - name: Deploy to VM via SFTP
+        run: |
+          sudo apt-get update && sudo apt-get install -y lftp
+          lftp -u "${{ secrets.SFTP_USERNAME }},${{ secrets.SFTP_PASSWORD }}" \
+               -p ${{ secrets.SFTP_PORT }} \
+               sftp://${{ secrets.SFTP_HOST }} \
+               -e "set ssl:verify-certificate no; mirror -R ./build/web-mobile/ ${{ secrets.SFTP_REMOTE_PATH }}; quit"
