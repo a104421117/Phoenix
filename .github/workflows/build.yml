@@ -35,7 +35,7 @@ jobs:
           curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
           7z x CocosCreator.zip -oCocosEditor
           del CocosCreator.zip
-          dir CocosCreator
+          dir CocosEditor
 
       - name: Cocos CLI Build
         shell: cmd
