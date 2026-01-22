@@ -1,184 +1,403 @@
-import { _decorator, Enum, game, Node } from 'cc';
-import { Base, Manager, getInstance } from '../../lib/BaseManager';
+import { _decorator, Component } from 'cc';
+import { BaseManager } from '../Lib/BaseManager';
+import { EventManager } from '../Lib/EventManager';
+import { GameEvents, GameState, GameConfig, DefaultGameConfig } from '../Lib/Constants';
+import { Timer, MultipleTimer } from '../Lib/Timer';
+import { GameStateMachine } from './GameStateMachine';
+import { WebSocketManager } from '../Net/WebSocketManager';
+import { MessageHandler } from '../Net/MessageHandler';
+import { MessageType, BetRequest, TakeoutRequest } from '../Net/Protocol';
 import { ModelManager } from '../Model/ModelManager';
-import * as View from "db://assets/Script/View/View";
-import { TakeOutManager } from '../View/TakeOutManager';
-import { GameModel } from '../Model/Model';
-import { PhoenixState, SpineManager } from '../View/SpineManager';
-import { FlyState, Move } from '../View/Move';
-import { WebSocketManager } from '../Model/WebSocketManager';
-import { AutoManager } from '../View/AutoManager';
-import { HistoryManager } from '../View/HistoryManager';
-import { InfiniteScroll, ScrollState } from '../View/InfiniteScroll';
-import { RankData, RankManager, RankType } from '../View/RankManager';
+
 const { ccclass, property } = _decorator;
 
-enum GameState {
-    Idle = "Idle",
-    Wager = "Wager",
-    Run = "Run",
-    Dead = "Dead"
-}
-
+/**
+ * 遊戲主控制器
+ */
 @ccclass('GameManager')
-export class GameManager extends Manager {
-    @property({ type: Enum(GameState), readonly: true }) private gameState: GameState = GameState.Idle;
-    private set GameState(value: GameState) {
-        this.gameState = value;
-        this.runState(value);
+export class GameManager extends BaseManager {
+    private static _inst: GameManager;
+    public static get instance(): GameManager {
+        return GameManager._inst;
     }
 
-    public get isRun() {
-        return this.gameState === GameState.Run;
+    @property
+    public serverUrl: string = 'wss://localhost:7070/ws';
+
+    @property
+    public authToken: string = '';
+
+    @property
+    public minBet: number = 10;
+
+    @property
+    public maxBet: number = 100000;
+
+    @property({ type: [Number] })
+    public betOptions: number[] = [10, 50, 100, 500, 1000, 5000];
+
+    @property
+    public wagerDuration: number = 10;
+
+    @property
+    public deadDuration: number = 5;
+
+    @property
+    public maxMultiplier: number = 1000;
+
+    @property
+    public growthRate: number = 0.06;
+
+    private _stateMachine: GameStateMachine;
+    private _wagerTimer: Timer;
+    private _settleTimer: Timer;
+    private _multipleTimer: MultipleTimer;
+    private _config: GameConfig;
+
+    protected onManagerLoad(): void {
+        GameManager._inst = this;
+
+        this._stateMachine = new GameStateMachine();
+        this._wagerTimer = new Timer();
+        this._settleTimer = new Timer();
+        this._multipleTimer = new MultipleTimer();
+
+        this._config = {
+            minBet: this.minBet,
+            maxBet: this.maxBet,
+            betOptions: this.betOptions,
+            wagerDuration: this.wagerDuration,
+            deadDuration: this.deadDuration,
+            maxMultiplier: this.maxMultiplier,
+            growthRate: this.growthRate
+        };
+
+        this._initStateMachine();
+        this._registerEvents();
     }
 
-    public get isWager() {
-        return this.gameState === GameState.Wager;
+    protected onManagerDestroy(): void {
+        this._wagerTimer.stop();
+        this._settleTimer.stop();
+        this._multipleTimer.stop();
+        EventManager.instance.offTarget(this);
     }
 
-    async start() {
-        // const socketUrl = "ws://192.168.1.113:8080/ws/fengfeifei%40%24_%24%40Jack?table=A";
-        const socketUrl = "wss://localhost:7070/ws";
-        // const socketUrl = "";
-        const token = "abc";
-        getInstance(WebSocketManager).createrSocket(socketUrl, token, () => {
-            this.GameState = GameState.Idle;
+    public init(): void {
+        // 初始化消息處理器
+        MessageHandler.instance.init();
+
+        // 設置倍數增長率
+        ModelManager.instance.multipleModel.setGrowthRate(this.growthRate);
+
+        console.log('GameManager initialized with config:', this._config);
+    }
+
+    public reset(): void {
+        ModelManager.instance.resetAll();
+        this._stateMachine.reset();
+        this._wagerTimer.stop();
+        this._settleTimer.stop();
+        this._multipleTimer.stop();
+    }
+
+    /**
+     * 連接服務器（返回 Promise）
+     * 建議在 Loading 場景調用，連線成功後再切換場景
+     */
+    public connectServer(url?: string, token?: string): Promise<void> {
+        return WebSocketManager.instance.connect(
+            url || this.serverUrl,
+            token || this.authToken
+        );
+    }
+
+    /**
+     * 斷開服務器
+     */
+    public disconnectServer(): void {
+        WebSocketManager.instance.disconnect();
+    }
+
+    /**
+     * 檢查是否已連線且認證
+     */
+    public get isServerReady(): boolean {
+        return WebSocketManager.instance.isReady;
+    }
+
+    private _initStateMachine(): void {
+        // IDLE 狀態
+        this._stateMachine.registerState(GameState.IDLE, {
+            onEnter: () => {
+                console.log('[GameManager] Enter IDLE state');
+            }
+        });
+
+        // WAGER 狀態（押注階段）
+        this._stateMachine.registerState(GameState.WAGER, {
+            onEnter: () => {
+                console.log('[GameManager] Enter WAGER state');
+                ModelManager.instance.resetForNewRound();
+            },
+            onExit: () => {
+                this._wagerTimer.stop();
+            }
+        });
+
+        // RUNNING 狀態（運行階段）
+        this._stateMachine.registerState(GameState.RUNNING, {
+            onEnter: () => {
+                console.log('[GameManager] Enter RUNNING state');
+                this._startMultipleGrowth();
+            },
+            onExit: () => {
+                this._multipleTimer.stop();
+                ModelManager.instance.multipleModel.stopGrowth();
+            },
+            onUpdate: (dt: number) => {
+                this._checkAutoTakeout();
+            }
+        });
+
+        // CRASHED 狀態
+        this._stateMachine.registerState(GameState.CRASHED, {
+            onEnter: () => {
+                console.log('[GameManager] Enter CRASHED state');
+            }
+        });
+
+        // SETTLE 狀態（結算階段）
+        this._stateMachine.registerState(GameState.SETTLE, {
+            onEnter: () => {
+                console.log('[GameManager] Enter SETTLE state');
+                this._startSettleCountdown();
+            },
+            onExit: () => {
+                this._settleTimer.stop();
+            }
+        });
+
+        // 狀態變化回調
+        this._stateMachine.setOnStateChange((from, to) => {
+            EventManager.instance.emit(GameEvents.GAME_STATE_CHANGED, { from, to });
         });
     }
 
-    update(deltaTime: number) {
+    private _registerEvents(): void {
+        // 監聽押注階段開始
+        EventManager.instance.on(GameEvents.WAGER_START, (data: any) => {
+            this._stateMachine.changeState(GameState.WAGER);
+            this._startWagerCountdown(data.countdown);
+        }, this);
 
+        // 監聽遊戲開始
+        EventManager.instance.on(GameEvents.GAME_START, () => {
+            this._stateMachine.changeState(GameState.RUNNING);
+        }, this);
+
+        // 監聽遊戲崩潰
+        EventManager.instance.on(GameEvents.GAME_CRASH, () => {
+            this._stateMachine.changeState(GameState.CRASHED);
+        }, this);
+
+        // 監聽遊戲結算
+        EventManager.instance.on(GameEvents.GAME_SETTLE, () => {
+            this._stateMachine.changeState(GameState.SETTLE);
+        }, this);
+
+        // 監聽連接成功
+        EventManager.instance.on(GameEvents.WS_CONNECTED, () => {
+            console.log('[GameManager] WebSocket connected');
+        }, this);
+
+        // 監聽連接斷開
+        EventManager.instance.on(GameEvents.WS_DISCONNECTED, () => {
+            console.log('[GameManager] WebSocket disconnected');
+        }, this);
     }
 
-    private runState(state: GameState) {
-        let model = getInstance(ModelManager);
-        switch (state) {
-            case GameState.Idle:
-                this.Idle();
-                break;
-            case GameState.Wager:
-                this.Wager(model.Wager.wagerTime);
-                break;
-            case GameState.Run:
-                const multiple = GameModel.getFloor(Math.random() * 25, 2);
-                const runTime = multiple * 4;
-                this.Run(runTime, multiple, 0.05);
-                break;
-            case GameState.Dead:
-                this.Dead(model.Wager.deadTime);
-                break;
-        }
-    }
-
-    /**
-     * 閒置狀態
-     */
-    private Idle(): void {
-        //取得socket結果
-        //待實作
-        this.GameState = GameState.Wager;
-    }
-
-    /**
-     * 可下注狀態
-     * @param time 時間
-     */
-    private Wager(time: number): void {
-        if (getInstance(AutoManager).IsAuto === true) {
-            const autoData = getInstance(AutoManager).getAutoData();
-            getInstance(TakeOutManager).autoTakeOut(autoData.bet, autoData.betCount);
-        }
-        getInstance(View.Bet).showBetNode();
-        getInstance(View.Timer).showWagerTime();
-        getInstance(View.Timer).changeWagerTime(time);
-        getInstance(SpineManager).eggIdle();
-        getInstance(Move).state = FlyState.Reset;
-        InfiniteScroll.scrollState = ScrollState.Move;
-        //時間遞減
-        Base.Timer.createCountdown((t: number) => {
-            getInstance(View.Timer).changeWagerTime(t);
-        }, () => {
-            getInstance(View.Timer).closeWagerTime();
-            getInstance(SpineManager).closeEgg();
-            this.GameState = GameState.Run;
-        }, time, this.GameState, 1);
-    }
-
-    /**
-     * 可取出狀態
-     * @param time 最大存活時間
-     * @param multiple 最大存活倍數
-     * @param deltaTime 倍數更新速率
-     */
-    private Run(time: number, multiple: number, deltaTime: number): void {
-        const rankData: RankData[] = [];
-        for (let i = 0; i < 6; i++) {
-            const data: RankData = {
-                spriteFrame: null,
-                bet: 0,
-                betCount: [RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY, RankType.GRAY],
-                multiple: 0
+    private _startWagerCountdown(seconds: number): void {
+        this._wagerTimer.start({
+            duration: seconds,
+            interval: 0.1,
+            onUpdate: (remaining) => {
+                EventManager.instance.emit(GameEvents.TIME_UPDATE, remaining);
+            },
+            onComplete: () => {
+                // 倒計時結束，等待服務器 GAME_START 消息
             }
-            rankData.push(data);
-        }
-        getInstance(View.Multiple).showMultiple();
-        getInstance(View.Multiple).changeMultiple(0);
-        getInstance(View.Bet).closeBetNode();
-        getInstance(View.Bet).closeBetBtn();
-        getInstance(TakeOutManager).showBottomButtonPickall();
-        getInstance(TakeOutManager).runTakeOut();
-        getInstance(SpineManager).State = PhoenixState.Move;
-        InfiniteScroll.scrollState = ScrollState.Fly;
-        Base.Timer.createCount((t: number) => {
-            // 使用指數曲線計算倍數
-            const runMultiple = GameModel.getCrashMultiplier(t, multiple, time, 2);
-            getInstance(ModelManager).MultipleModel.runMultiple = runMultiple;
-            getInstance(View.Multiple).changeMultiple(runMultiple);
-            getInstance(TakeOutManager).changeTakeOut(runMultiple);
-            if (runMultiple >= getInstance(AutoManager).CashOutNum) {
-                getInstance(TakeOutManager).takeOut();
+        });
+    }
+
+    private _startMultipleGrowth(): void {
+        ModelManager.instance.multipleModel.startGrowth();
+
+        this._multipleTimer.start(this.growthRate, (multiple) => {
+            // 本地平滑更新倍數顯示
+            EventManager.instance.emit(GameEvents.MULTIPLE_UPDATE, { multiple });
+        });
+    }
+
+    private _startSettleCountdown(): void {
+        this._settleTimer.start({
+            duration: this.deadDuration,
+            onComplete: () => {
+                this._stateMachine.changeState(GameState.IDLE);
             }
-            rankData.forEach((rank) => {
-                rank.bet++;
-                rank.multiple = 0;
-            });
-            getInstance(RankManager).changeRank(rankData);
-        }, () => {
-            getInstance(AutoManager).minusRunCount();
-            getInstance(ModelManager).MultipleModel.runMultiple = multiple;
-            getInstance(View.Multiple).changeMultiple(multiple);
-            getInstance(View.Multiple).closeTextC();
-            getInstance(SpineManager).closePhoenix();
-            getInstance(HistoryManager).addHistory(multiple);
-            this.GameState = GameState.Dead;
-        }, time, this.GameState, deltaTime);
+        });
+    }
+
+    private _checkAutoTakeout(): void {
+        const betModel = ModelManager.instance.betModel;
+        const multipleModel = ModelManager.instance.multipleModel;
+
+        if (betModel.shouldAutoTakeout(multipleModel.currentMultiple)) {
+            this.takeout();
+        }
+    }
+
+    // ===== 公開 API =====
+
+    /**
+     * 押注
+     */
+    public placeBet(amount: number, autoTakeout?: number): boolean {
+        const userModel = ModelManager.instance.userModel;
+        const betModel = ModelManager.instance.betModel;
+        const gameModel = ModelManager.instance.gameModel;
+
+        // 驗證遊戲狀態
+        if (!gameModel.isWagerPhase()) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '當前不在押注階段');
+            return false;
+        }
+
+        // 驗證是否已押注
+        if (betModel.hasBet()) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '已經押注過了');
+            return false;
+        }
+
+        // 驗證金額範圍
+        if (amount < this._config.minBet || amount > this._config.maxBet) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, `押注金額需在 ${this._config.minBet} - ${this._config.maxBet} 之間`);
+            return false;
+        }
+
+        // 驗證餘額
+        if (!userModel.canAfford(amount)) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '餘額不足');
+            return false;
+        }
+
+        // 驗證自動收錢倍數
+        if (autoTakeout !== undefined && autoTakeout <= 1) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '自動收錢倍數需大於 1');
+            return false;
+        }
+
+        // 發送押注請求
+        const request: BetRequest = {
+            type: MessageType.BET_REQUEST,
+            timestamp: Date.now(),
+            data: {
+                roundId: gameModel.roundId,
+                amount: amount,
+                autoTakeout: autoTakeout
+            }
+        };
+
+        if (!WebSocketManager.instance.send(request)) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '網絡連接異常');
+            return false;
+        }
+
+        // 設置待確認狀態
+        betModel.setBetAmount(amount);
+        if (autoTakeout) {
+            betModel.setAutoTakeout(autoTakeout);
+        }
+
+        EventManager.instance.emit(GameEvents.BET_PLACED, { amount, autoTakeout });
+        return true;
     }
 
     /**
-     * 
-     * 
-     * 
-     * @param time 
+     * 收錢
      */
-    private Dead(time: number): void {
-        getInstance(View.Timer).showDeadTime();
-        getInstance(View.Timer).changeDeadTime(time);
-        getInstance(TakeOutManager).closeBottomButtonPickall();
-        getInstance(TakeOutManager).showRepeatBtn();
-        getInstance(TakeOutManager).closeWin();
-        getInstance(SpineManager).eggDie();
-        getInstance(Move).state = FlyState.None;
-        InfiniteScroll.scrollState = ScrollState.Move;
-        Base.Timer.createCountdown((t: number) => {
-            getInstance(View.Timer).changeDeadTime(t);
-        }, () => {
-            getInstance(View.Timer).closeDeadTime();
-            getInstance(View.Multiple).closemultipleLabel();
-            getInstance(TakeOutManager).resetTakeOut();
-            getInstance(TakeOutManager).closeTakeOut();
-            this.GameState = GameState.Idle;
-        }, time, this.GameState, 1);
+    public takeout(): boolean {
+        const betModel = ModelManager.instance.betModel;
+        const gameModel = ModelManager.instance.gameModel;
+
+        // 驗證遊戲狀態
+        if (!gameModel.isRunningPhase()) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '遊戲未在運行中');
+            return false;
+        }
+
+        // 驗證是否可以收錢
+        if (!betModel.canTakeout()) {
+            if (!betModel.hasBet()) {
+                EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '您沒有押注');
+            } else {
+                EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '已經收錢過了');
+            }
+            return false;
+        }
+
+        // 發送收錢請求
+        const request: TakeoutRequest = {
+            type: MessageType.TAKEOUT_REQUEST,
+            timestamp: Date.now(),
+            data: {
+                roundId: gameModel.roundId
+            }
+        };
+
+        if (!WebSocketManager.instance.send(request)) {
+            EventManager.instance.emit(GameEvents.SHOW_MESSAGE, '網絡連接異常');
+            return false;
+        }
+
+        EventManager.instance.emit(GameEvents.TAKEOUT_REQUEST);
+        return true;
+    }
+
+    /**
+     * 獲取當前遊戲狀態
+     */
+    public get currentState(): GameState {
+        return this._stateMachine.currentState;
+    }
+
+    /**
+     * 獲取遊戲配置
+     */
+    public get config(): GameConfig {
+        return { ...this._config };
+    }
+
+    /**
+     * 是否可以押注
+     */
+    public canPlaceBet(): boolean {
+        return ModelManager.instance.gameModel.isWagerPhase() &&
+               !ModelManager.instance.betModel.hasBet();
+    }
+
+    /**
+     * 是否可以收錢
+     */
+    public canTakeout(): boolean {
+        return ModelManager.instance.gameModel.isRunningPhase() &&
+               ModelManager.instance.betModel.canTakeout();
+    }
+
+    /**
+     * 更新邏輯（每幀調用）
+     */
+    protected update(dt: number): void {
+        this._stateMachine.update(dt);
     }
 }
-
-

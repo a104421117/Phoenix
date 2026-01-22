@@ -1,147 +1,228 @@
-import { _decorator, Component, Node, sp, Vec2, Vec3 } from 'cc';
-import { getInstance, Manager } from '../../lib/BaseManager';
-import { Move, FlyState } from './Move';
+import { _decorator, Node, sp } from 'cc';
+import { BaseManager } from '../Lib/BaseManager';
+import { EventManager } from '../Lib/EventManager';
+import { GameEvents, GameState } from '../Lib/Constants';
+
 const { ccclass, property } = _decorator;
 
-export const enum PhoenixState {
-    None,
-    Egg,
-    Move,
-    Fly,
-    Die
-}
-
-
+/**
+ * Spine 動畫管理器
+ */
 @ccclass('SpineManager')
-export class SpineManager extends Manager {
-    private state: PhoenixState = PhoenixState.None;
-    public set State(state: PhoenixState) {
-        switch (state) {
-            case PhoenixState.None:
-                break;
-            case PhoenixState.Egg:
-                break;
-            case PhoenixState.Move:
-                this.PhoenixInit();
-                break;
-            case PhoenixState.Fly:
-                getInstance(Move).state = FlyState.Fly;
-                break;
-            case PhoenixState.Die:
-                break;
-        }
-        this.state = state;
-    }
-    @property({ type: sp.Skeleton }) private egg: sp.Skeleton;
-    @property({ type: sp.Skeleton }) private Phoenix: sp.Skeleton;
-    @property({ type: sp.Skeleton }) private feather: sp.Skeleton;
-    @property({ type: sp.Skeleton }) private Start: sp.Skeleton;
-
-    start() {
-        let self = this;
-        this.Start.setCompleteListener(() => {
-            self.closeStart();
-        })
-        this.closeEgg();
-        this.closePhoenix();
-        this.closeStart();
+export class SpineManager extends BaseManager {
+    private static _inst: SpineManager;
+    public static get instance(): SpineManager {
+        return SpineManager._inst;
     }
 
-    update(deltaTime: number) {
-        switch (this.state) {
-            case PhoenixState.None:
+    @property(sp.Skeleton)
+    private eggSpine: sp.Skeleton = null;
+
+    @property(sp.Skeleton)
+    private phoenixSpine: sp.Skeleton = null;
+
+    @property(sp.Skeleton)
+    private featherSpine: sp.Skeleton = null;
+
+    @property(sp.Skeleton)
+    private startSpine: sp.Skeleton = null;
+
+    // 動畫名稱（根據實際 Spine 動畫調整）
+    @property
+    private animIdle: string = 'idle';
+
+    @property
+    private animFlying: string = 'flying';
+
+    @property
+    private animCrash: string = 'crash';
+
+    @property
+    private animStart: string = 'start';
+
+    @property
+    private animHatch: string = 'hatch';
+
+    private _baseTimeScale: number = 1;
+
+    protected onManagerLoad(): void {
+        SpineManager._inst = this;
+    }
+
+    public init(): void {
+        this._registerEvents();
+        this._playIdle();
+    }
+
+    public reset(): void {
+        this._playIdle();
+    }
+
+    private _registerEvents(): void {
+        EventManager.instance.on(GameEvents.GAME_STATE_CHANGED, this._onStateChanged, this);
+        EventManager.instance.on(GameEvents.MULTIPLE_UPDATE, this._onMultipleUpdate, this);
+        EventManager.instance.on(GameEvents.WAGER_START, this._onWagerStart, this);
+    }
+
+    private _onStateChanged(data: { from: GameState; to: GameState }): void {
+        switch (data.to) {
+            case GameState.IDLE:
+                this._playIdle();
                 break;
-            case PhoenixState.Egg:
+            case GameState.WAGER:
+                this._playWager();
                 break;
-            case PhoenixState.Move:
-                this.PhoenixMove(deltaTime);
+            case GameState.RUNNING:
+                this._playFlying();
                 break;
-            case PhoenixState.Fly:
-                this.PhoenixFly(deltaTime);
+            case GameState.CRASHED:
+                this._playCrash();
                 break;
-            case PhoenixState.Die:
+            case GameState.SETTLE:
+                // 保持崩潰狀態或播放結算動畫
                 break;
-        }
-    }
-
-    eggIdle(): void {
-        this.egg.enabled = true;
-        this.egg.setAnimation(0, "start", false);
-        this.egg.addAnimation(0, "idle", true);
-    }
-
-    eggDie(): void {
-        this.egg.enabled = true;
-        this.egg.setAnimation(0, "die", false);
-    }
-
-    closeEgg(): void {
-        this.egg.enabled = false;
-    }
-
-    private closeStart(): void {
-        this.Start.enabled = false;
-    }
-
-    private PhoenixInit(): void {
-        this.Phoenix.node.setPosition(this.moveInit.x, this.moveInit.y);
-        this.Phoenix.node.setRotationFromEuler(this.eulerInit.x, this.eulerInit.y, this.eulerInit.z);
-        this.Phoenix.enabled = true;
-        this.Start.setAnimation(0, "StarGane-VFX", false);
-        this.Start.enabled = true;
-        this.Phoenix.setAnimation(0, "fly", true);
-    }
-
-    private moveInit: Vec2 = new Vec2(0, -145);
-    private moveTaget = -300;
-    private moveSpeed = 100;
-    private PhoenixMove(t: number): void {
-        const pos = this.Phoenix.node.getPosition();
-        const x = pos.x + t * this.moveSpeed;
-        const y = pos.y;
-
-        if (x > this.moveTaget) {
-            this.State = PhoenixState.Fly;
-        } else {
-            this.Phoenix.node.setPosition(x, y);
         }
     }
 
-    private eulerInit = new Vec3(0, 0, 0);
-    private eulerTaget = 90;
-    private eulerSpeed: number = 1;
+    private _onWagerStart(data: any): void {
+        // 可以播放特殊的押注開始動畫
+    }
 
-    private flyTaget = 200;
-    private flySpeed = 10;
+    private _onMultipleUpdate(data: { multiple: number }): void {
+        // 根據倍數調整動畫速度
+        const speed = Math.min(1 + (data.multiple - 1) * 0.05, 2);
+        this._setAnimationSpeed(speed);
+    }
 
-    // private targetQuat: Quat = new Quat();
+    private _playIdle(): void {
+        this._showEgg();
 
-    private PhoenixFly(t: number): void {
-        const euler = this.Phoenix.node.eulerAngles;
-        const eulerX = euler.x;
-        const eulerY = euler.y;
-        const eulerZ = euler.z + t * this.eulerSpeed;
-
-        const pos = this.Phoenix.node.getPosition();
-        const flyX = pos.x + t * this.flySpeed;
-        const flyY = pos.y;
-
-        if (eulerZ <= this.eulerTaget) {
-            this.Phoenix.node.setRotationFromEuler(eulerX, eulerY, eulerZ);
-        }
-
-        if (flyX <= this.flyTaget) {
-            this.Phoenix.node.setPosition(flyX, flyY);
-        }
-
-        if (flyX > this.flyTaget && eulerZ > this.eulerTaget) {
-            this.State = PhoenixState.None;
+        if (this.eggSpine) {
+            this._safePlayAnimation(this.eggSpine, this.animIdle, true);
         }
     }
 
-    closePhoenix(): void {
-        this.Phoenix.enabled = false;
+    private _playWager(): void {
+        this._showEgg();
+
+        if (this.eggSpine) {
+            // 可以播放待機或輕微晃動動畫
+            this._safePlayAnimation(this.eggSpine, this.animIdle, true);
+        }
+
+        if (this.startSpine) {
+            this.startSpine.node.active = true;
+            this._safePlayAnimation(this.startSpine, this.animStart, false);
+        }
+    }
+
+    private _playFlying(): void {
+        this._showPhoenix();
+
+        // 播放孵化動畫（如果有）
+        if (this.eggSpine && this.animHatch) {
+            this._safePlayAnimation(this.eggSpine, this.animHatch, false);
+        }
+
+        // 延遲顯示鳳凰
+        setTimeout(() => {
+            if (this.phoenixSpine) {
+                this.phoenixSpine.node.active = true;
+                this._safePlayAnimation(this.phoenixSpine, this.animFlying, true);
+            }
+            if (this.featherSpine) {
+                this.featherSpine.node.active = true;
+                this._safePlayAnimation(this.featherSpine, this.animFlying, true);
+            }
+            if (this.eggSpine) {
+                this.eggSpine.node.active = false;
+            }
+        }, 500);
+
+        if (this.startSpine) {
+            this.startSpine.node.active = false;
+        }
+    }
+
+    private _playCrash(): void {
+        if (this.phoenixSpine) {
+            this._safePlayAnimation(this.phoenixSpine, this.animCrash, false);
+        }
+        if (this.featherSpine) {
+            this._safePlayAnimation(this.featherSpine, this.animCrash, false);
+        }
+    }
+
+    private _showEgg(): void {
+        if (this.eggSpine) {
+            this.eggSpine.node.active = true;
+        }
+        if (this.phoenixSpine) {
+            this.phoenixSpine.node.active = false;
+        }
+        if (this.featherSpine) {
+            this.featherSpine.node.active = false;
+        }
+        if (this.startSpine) {
+            this.startSpine.node.active = false;
+        }
+    }
+
+    private _showPhoenix(): void {
+        // Phoenix 會在動畫過渡後顯示
+    }
+
+    private _setAnimationSpeed(speed: number): void {
+        if (this.phoenixSpine) {
+            this.phoenixSpine.timeScale = this._baseTimeScale * speed;
+        }
+        if (this.featherSpine) {
+            this.featherSpine.timeScale = this._baseTimeScale * speed;
+        }
+    }
+
+    private _safePlayAnimation(skeleton: sp.Skeleton, animName: string, loop: boolean): void {
+        try {
+            // 檢查動畫是否存在
+            const data = skeleton.skeletonData;
+            if (data) {
+                skeleton.setAnimation(0, animName, loop);
+            }
+        } catch (error) {
+            console.warn(`Animation "${animName}" not found or error:`, error);
+        }
+    }
+
+    /**
+     * 播放指定動畫
+     */
+    public playAnimation(spineType: 'egg' | 'phoenix' | 'feather' | 'start', animName: string, loop: boolean = true): void {
+        let skeleton: sp.Skeleton | null = null;
+
+        switch (spineType) {
+            case 'egg':
+                skeleton = this.eggSpine;
+                break;
+            case 'phoenix':
+                skeleton = this.phoenixSpine;
+                break;
+            case 'feather':
+                skeleton = this.featherSpine;
+                break;
+            case 'start':
+                skeleton = this.startSpine;
+                break;
+        }
+
+        if (skeleton) {
+            this._safePlayAnimation(skeleton, animName, loop);
+        }
+    }
+
+    /**
+     * 設置基礎時間縮放
+     */
+    public setBaseTimeScale(scale: number): void {
+        this._baseTimeScale = scale;
     }
 }
-
-

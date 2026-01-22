@@ -263,7 +263,7 @@
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "bdfbf3f2-7c7f-486f-9db9-412f547671a2@f9941",
+      "__uuid__": "e6afc3b3-a863-43d0-bced-556361595543@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,
@@ -960,7 +960,7 @@
     "_priority": 0,
     "_fov": 45,
     "_fovAxis": 0,
-    "_orthoHeight": 375.08936970837254,
+    "_orthoHeight": 368.50277264325325,
     "_near": 0,
     "_far": 2000,
     "_color": {
@@ -1109,7 +1109,6 @@
     "__type__": "692342xSPJKMrcVPD+272Hd",
     "_name": "",
     "_objFlags": 0,
-    "__editorExtras__": {},
     "node": {
       "__id__": 28
     },

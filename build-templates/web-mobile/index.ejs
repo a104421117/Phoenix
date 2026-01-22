@@ -1,13 +1,15 @@
 ﻿<!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
 
-  <title>Cocos Creator | <%= projectName %></title>
+  <title>JUGame</title>
+  </title>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
-        content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true"/>
+    content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true" />
 
   <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,16 +18,16 @@
   <meta name="format-detection" content="telephone=no">
 
   <!-- force webkit on 360 -->
-  <meta name="renderer" content="webkit"/>
-  <meta name="force-rendering" content="webkit"/>
+  <meta name="renderer" content="webkit" />
+  <meta name="force-rendering" content="webkit" />
   <!-- force edge on IE -->
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   <meta name="msapplication-tap-highlight" content="no">
 
   <!-- force full screen on some browser -->
-  <meta name="full-screen" content="yes"/>
-  <meta name="x5-fullscreen" content="true"/>
-  <meta name="360-fullscreen" content="true"/>
+  <meta name="full-screen" content="yes" />
+  <meta name="x5-fullscreen" content="true" />
+  <meta name="360-fullscreen" content="true" />
 
   <!--fix fireball/issues/3568 -->
   <!--<meta name="browsermode" content="application">-->
@@ -34,15 +36,124 @@
   <!--<link rel="apple-touch-icon" href=".png" />-->
   <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
 
-  <link rel="stylesheet" type="text/css" href="<%= cssUrl %>"/>
+  <link rel="stylesheet" type="text/css" href="<%= cssUrl %>" />
+  <style>
+    body {
+      background-color: black;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
 
+    #nosleep {
+      background-color: rgba(255, 0, 0, 0);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: all;
+      z-index: 10;
+      visibility: hidden;
+    }
+
+    #fullscreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      visibility: hidden;
+    }
+
+    #swipe {
+      width: 100%;
+      height: 100%;
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: auto 50%;
+      background-color: black;
+
+      visibility: hidden;
+    }
+
+    .mask-box {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 999;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #fullscreen.no-click {
+      pointer-events: none;
+    }
+
+    #toggle-fullscreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0);
+      z-index: 100;
+      visibility: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #swipes {
+      position: fixed;
+      /* 固定在螢幕上 */
+      top: 0;
+      left: 0;
+      width: 100vw;
+      /* 滿螢幕寬 */
+      height: 100vh;
+      /* 滿螢幕高 */
+      background-color: rgba(0, 0, 0, 1);
+      /* 黑色遮罩 */
+      background-image: url('images/swipeMobile.bbbe5.gif');
+      /* 圖片 */
+      background-repeat: no-repeat;
+      background-position: center center;
+      /* 圖片在中間 */
+      background-size: auto 50%;
+      /* 圖片高度占螢幕一半，維持比例 */
+      z-index: 1000;
+      /* 蓋在最上層 */
+      pointer-events: none;
+      /* 事件穿透，不阻擋操作 */
+      visibility: hidden;
+      /* 初始隱藏 */
+    }
+  </style>
 </head>
+
 <body>
-  <div id="GameDiv" cc_exact_fit_screen="true">
+  <div class="mask-box">
+    <div id="GameDiv" cc_exact_fit_screen="true">
       <div id="Cocos3dGameContainer">
         <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
       </div>
     </div>
+    <div id="nosleep"></div>
+    <div id="swipes"></div>
+    <div id="fullscreen">
+      <div id="swipe"></div>
+      <div id="privateBrowsing"></div>
+    </div>
+    <div id="toggle-fullscreen"></div>
+    
+
+  </div>
+  <script src="GameFullscreen_V2.js"></script>
   <%- include(cocosTemplate, {}) %>
 </body>
+
 </html>

@@ -44,9 +44,23 @@ jobs:
           COCOS_USER: ${{ secrets.COCOS_USER }}
           COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
-          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false", "--login", "$env:COCOS_USER", "$env:COCOS_PWD" -PassThru -Wait -NoNewWindow
+          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false", "--login", "$env:COCOS_USER", "$env:COCOS_PWD" -PassThru
+          $timeout = 600
+          $timer = 0
+          while (!$process.HasExited -and $timer -lt $timeout) {
+            Start-Sleep -Seconds 10
+            $timer += 10
+            Write-Host "Waiting for build... ($timer seconds)"
+            if (Test-Path "build/web-mobile/index.html") {
+              Write-Host "Build output detected, waiting for process to finish..."
+            }
+          }
+          if (!$process.HasExited) {
+            Write-Host "Process still running after $timeout seconds, stopping..."
+            $process.Kill()
+          }
           Write-Host "Build process exited with code: $($process.ExitCode)"
-          Start-Sleep -Seconds 15
+          Start-Sleep -Seconds 5
           if (Test-Path "build/web-mobile/index.html") {
             Write-Host "Build successful - index.html found"
           } else {

@@ -1,207 +1,228 @@
-import { _decorator, Button, instantiate, Label, Node, Prefab, Sprite } from 'cc';
-import { getInstance, Manager } from '../../lib/BaseManager';
-import { ModelManager } from '../Model/ModelManager';
-import { TakeOut } from 'db://assets/Script/ModelView/TakeOut';
-import { GameModel } from '../Model/Model';
-import { WebSocketManager } from '../Model/WebSocketManager';
+import { _decorator, Node, Button, Label, tween, Vec3, Color } from 'cc';
+import { BaseManager } from '../Lib/BaseManager';
+import { EventManager } from '../Lib/EventManager';
+import { GameEvents, GameState } from '../Lib/Constants';
 import { GameManager } from '../Control/GameManager';
-import { MessageManager } from './MessageManager';
+import { ModelManager } from '../Model/ModelManager';
+
 const { ccclass, property } = _decorator;
 
-type TakeOutArr = [TakeOut, TakeOut, TakeOut, TakeOut, TakeOut];
-
+/**
+ * 收錢/結算管理器
+ */
 @ccclass('TakeOutManager')
-export class TakeOutManager extends Manager {
-    @property({ type: Button }) private bottomButtonBet: Button;
-    @property({ type: Prefab }) private buttonPickNormalPrefab: Prefab;
-    @property({ type: Node }) private takeOutLayout: Node;
-    @property({ type: Button }) private repeatBtn: Button;//尚未有圖片故先隨意命名
-    @property({ type: Button }) private BottomButtonPickall: Button;
-    @property({ type: Array(TakeOut), readonly: true }) private takeOutArr: TakeOutArr = [
-        new TakeOut(),
-        new TakeOut(),
-        new TakeOut(),
-        new TakeOut(),
-        new TakeOut()
-    ];
-    private takeOutTotal: number = 0;
-    private winNum: number = 0;
-    @property({ type: Node }) private winNode: Node;
-    @property({ type: Sprite }) private TextD: Sprite;
-    @property({ type: Label }) private H3A: Label;
-    @property({ type: Label }) private H4B: Label;
-    private index: number = 0;
-
-
-    start() {
-        this.bottomButtonBet.node.on(Button.EventType.CLICK, this.showTakeOut.bind(this));
-        this.BottomButtonPickall.node.on(Button.EventType.CLICK, this.takeOut.bind(this));
-        this.repeatBtn.node.on(Button.EventType.CLICK, this.repeatBet.bind(this));
-
-        this.closeBottomButtonPickall();
-        this.closeRepeatBtn();
-        this.closeWin();
-
-        //下注數量,若要有後台設定則要傳資料進來
-        this.initTakeOut();
+export class TakeOutManager extends BaseManager {
+    private static _inst: TakeOutManager;
+    public static get instance(): TakeOutManager {
+        return TakeOutManager._inst;
     }
 
-    update(deltaTime: number) {
+    @property(Node)
+    private takeoutNode: Node = null;
 
+    @property(Button)
+    private takeoutBtn: Button = null;
+
+    @property(Label)
+    private takeoutLabel: Label = null;
+
+    @property(Label)
+    private potentialWinLabel: Label = null;
+
+    @property(Node)
+    private winNode: Node = null;
+
+    @property(Label)
+    private winAmountLabel: Label = null;
+
+    @property(Label)
+    private winMultipleLabel: Label = null;
+
+    @property(Node)
+    private lossNode: Node = null;
+
+    @property(Label)
+    private lossLabel: Label = null;
+
+    // 顏色
+    private readonly COLOR_WIN = new Color(76, 175, 80);
+    private readonly COLOR_LOSS = new Color(255, 77, 77);
+
+    protected onManagerLoad(): void {
+        TakeOutManager._inst = this;
     }
 
-    private initTakeOut(betCountMax: number = getInstance(ModelManager).BetModel.betCountMax): void {
-        for (let i = 0; i < betCountMax; i++) {
-            const node = instantiate(this.buttonPickNormalPrefab);
-            this.takeOutLayout.addChild(node);
-            node.on('takeout', this.showWin.bind(this));
+    public init(): void {
+        this._setupListeners();
+        this._registerEvents();
+        this._hideAll();
+    }
 
-            const _takeOut: TakeOut = node.getComponent(TakeOut);
-            _takeOut.init(betCountMax);
-            _takeOut.node.on(Button.EventType.CLICK, this.showWin.bind(this));
-            this.takeOutArr[i] = _takeOut;
+    public reset(): void {
+        this._hideAll();
+    }
+
+    private _setupListeners(): void {
+        this.takeoutBtn?.node.on('click', this._onTakeoutClick, this);
+    }
+
+    private _registerEvents(): void {
+        EventManager.instance.on(GameEvents.GAME_STATE_CHANGED, this._onStateChanged, this);
+        EventManager.instance.on(GameEvents.BET_CONFIRMED, this._onBetConfirmed, this);
+        EventManager.instance.on(GameEvents.MULTIPLE_UPDATE, this._onMultipleUpdate, this);
+        EventManager.instance.on(GameEvents.TAKEOUT_SUCCESS, this._onTakeoutSuccess, this);
+        EventManager.instance.on(GameEvents.GAME_CRASH, this._onGameCrash, this);
+        EventManager.instance.on(GameEvents.GAME_SETTLE, this._onGameSettle, this);
+    }
+
+    private _onStateChanged(data: { from: GameState; to: GameState }): void {
+        switch (data.to) {
+            case GameState.WAGER:
+            case GameState.IDLE:
+                this._hideAll();
+                break;
+            case GameState.RUNNING:
+                this._checkShowTakeout();
+                break;
+            case GameState.SETTLE:
+                // 保持當前顯示狀態
+                break;
         }
     }
 
-    private showTakeOut(self: Button, bet: number = getInstance(ModelManager).BetModel.bet): void {
-        if (getInstance(GameManager).isRun === false && this.index < this.takeOutArr.length) {
-            getInstance(WebSocketManager).Bet({ index: this.index, amount: bet });
-            // this.BottomButtonPickall.enabled = false;
-            this.takeOutArr[this.index].show(bet);
-            this.index++;
+    private _onBetConfirmed(data: any): void {
+        // 押注確認後，準備在遊戲開始時顯示收錢按鈕
+    }
+
+    private _onMultipleUpdate(data: { multiple: number }): void {
+        this._updateTakeoutInfo(data.multiple);
+    }
+
+    private _onTakeoutClick(): void {
+        GameManager.instance.takeout();
+    }
+
+    private _onTakeoutSuccess(data: any): void {
+        this._showWin(data.multiple, data.winAmount);
+    }
+
+    private _onGameCrash(data: { crashPoint: number }): void {
+        const betModel = ModelManager.instance.betModel;
+        if (betModel.hasBet() && !betModel.hasTakenOut) {
+            // 未收錢，顯示虧損
+            this._showLoss(betModel.currentBet.amount);
         }
     }
 
-    public autoTakeOut(bet: number, conut: number): void {
-        for (let i = 0; i < conut; i++) {
-            this.takeOutArr[i].show(bet);
-        }
-        this.index += conut;
-    }
-
-    public takeOut(): void {
-        this.BottomButtonPickall.enabled = false;
-        this.takeOutArr.forEach((takeOut) => {
-            takeOut.takeOut();
-        });
-    }
-
-    private checkTakeOut(): boolean {
-        let isShow = false;
-        for (let i = 0; i < this.index; i++) {
-            if (this.takeOutArr[i].IsShow === true && this.takeOutArr[i].isTakeOut === false) {
-                isShow = true;
+    private _onGameSettle(data: any): void {
+        if (data.userResult) {
+            if (data.userResult.takeoutMultiple !== null) {
+                // 已收錢，顯示獲勝（如果尚未顯示）
+            } else if (data.userResult.betAmount > 0) {
+                // 未收錢，顯示虧損（如果尚未顯示）
             }
         }
-        this.BottomButtonPickall.enabled = isShow;
-        return isShow;
     }
 
-    private repeatBet(): void {
-        this.closeRepeatBtn();
-        this.takeOutArr.forEach((takeOut, index) => {
-            if (takeOut.bet > 0) {
-                console.log("index:" + index);
-                takeOut.isBetRepeat = true;
-                takeOut.show();
-            }
-        });
+    private _checkShowTakeout(): void {
+        const betModel = ModelManager.instance.betModel;
+        if (betModel.hasBet() && !betModel.hasTakenOut) {
+            this._showTakeout();
+        }
     }
 
-    public showBottomButtonPickall(): void {
-        this.BottomButtonPickall.node.active = true;
-        // this.BottomButtonPickall.enabled = true;
+    private _showTakeout(): void {
+        if (this.takeoutNode) {
+            this.takeoutNode.active = true;
+        }
+        if (this.takeoutBtn) {
+            this.takeoutBtn.interactable = true;
+        }
+        if (this.winNode) {
+            this.winNode.active = false;
+        }
+        if (this.lossNode) {
+            this.lossNode.active = false;
+        }
     }
 
-    public closeBottomButtonPickall(): void {
-        this.BottomButtonPickall.node.active = false;
+    private _updateTakeoutInfo(multiple: number): void {
+        const betModel = ModelManager.instance.betModel;
+        if (!betModel.hasBet() || betModel.hasTakenOut) return;
+
+        const potentialWin = betModel.calculatePotentialWin(multiple);
+
+        if (this.takeoutLabel) {
+            this.takeoutLabel.string = '收錢';
+        }
+        if (this.potentialWinLabel) {
+            this.potentialWinLabel.string = `+${potentialWin.toFixed(0)}`;
+        }
     }
 
-    public showRepeatBtn(): void {
-        // this.takeOutArr.forEach((takeOut) => {
-        //     if (takeOut.IsShow) {
-        //         this.repeatBtn.node.active = true;
-        //     }
-        // });
-    }
-
-    public closeRepeatBtn(): void {
-        this.repeatBtn.node.active = false;
-    }
-
-    public runTakeOut() {
-        this.checkTakeOut();
-        this.takeOutArr.forEach((takeOut) => {
-            takeOut.run();
-        });
-    }
-
-    public changeTakeOut(multiple: number): void {
-        this.takeOutArr.forEach((takeOut) => {
-            takeOut.change(multiple);
-        });
-        this.changeTotal();
-    }
-
-    public closeTakeOut() {
-        this.takeOutArr.forEach((takeOut) => {
-            takeOut.close();
-        });
-        this.index = 0;
-    }
-
-    public resetTakeOut() {
-        this.takeOutArr.forEach((takeOut) => {
-            if (takeOut.isBetRepeat === true) {
-                takeOut.reset();
-            }
-        });
-        this.closeRepeatBtn();
-    }
-
-    private showWin(winNum: number): number {
-        this.checkTakeOut();
-
-        let betTotal = 0;
-        for (let i = 0; i < this.index; i++) {
-            const bet = this.takeOutArr[i].bet;
-            betTotal += bet;
+    private _showWin(multiple: number, winAmount: number): void {
+        // 隱藏收錢按鈕
+        if (this.takeoutNode) {
+            this.takeoutNode.active = false;
         }
 
-        const commission = GameModel.getFloor(this.takeOutTotal * 0.05);
+        // 顯示獲勝
+        if (this.winNode) {
+            this.winNode.active = true;
+            this.winNode.setScale(0, 0, 1);
 
-        this.winNum = this.takeOutTotal - betTotal - commission;
+            // 獲勝動畫
+            tween(this.winNode)
+                .to(0.3, { scale: new Vec3(1.2, 1.2, 1) })
+                .to(0.1, { scale: new Vec3(1, 1, 1) })
+                .start();
+        }
 
-        const winStr = this.winNum > 0 ? "+" + GameModel.getThousandth(this.winNum) : GameModel.getThousandth(this.winNum);
-        this.H3A.string = winStr;
+        if (this.winAmountLabel) {
+            this.winAmountLabel.string = `+${winAmount.toFixed(0)}`;
+            this.winAmountLabel.color = this.COLOR_WIN;
+        }
 
-        this.winNode.active = true;
-        this.takeOutArr[this.index - 1].node.addChild(this.winNode);
-        getInstance(MessageManager).setMessage("win", { win: winNum, total: this.winNum });
-        return this.winNum;
+        if (this.winMultipleLabel) {
+            this.winMultipleLabel.string = `@${multiple.toFixed(2)}x`;
+        }
+
+        if (this.lossNode) {
+            this.lossNode.active = false;
+        }
     }
 
-    private changeTotal(): number {
-        let total = 0;
-        for (let i = 0; i < this.index; i++) {
-            const num = this.takeOutArr[i].TakeOut;
-            total += num;
+    private _showLoss(betAmount: number): void {
+        // 隱藏收錢按鈕
+        if (this.takeoutNode) {
+            this.takeoutNode.active = false;
         }
-        if (total > 0) {
-            this.H4B.string = GameModel.getThousandth(total);
+
+        // 顯示虧損
+        if (this.lossNode) {
+            this.lossNode.active = true;
         }
-        this.takeOutTotal = total;
-        return total;
+
+        if (this.lossLabel) {
+            this.lossLabel.string = `-${betAmount.toFixed(0)}`;
+            this.lossLabel.color = this.COLOR_LOSS;
+        }
+
+        if (this.winNode) {
+            this.winNode.active = false;
+        }
     }
 
+    private _hideAll(): void {
+        if (this.takeoutNode) this.takeoutNode.active = false;
+        if (this.winNode) this.winNode.active = false;
+        if (this.lossNode) this.lossNode.active = false;
+    }
 
-    public closeWin() {
-        this.winNum = 0;
-        this.takeOutTotal = 0;
-        this.H3A.string = "";
-        this.H4B.string = "";
-        this.winNode.active = false;
+    /**
+     * 檢查是否可以收錢
+     */
+    public canTakeout(): boolean {
+        return ModelManager.instance.betModel.canTakeout();
     }
 }
-
-
