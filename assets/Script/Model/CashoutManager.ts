@@ -6,19 +6,22 @@ const { ccclass, property } = _decorator;
 @ccclass('CashoutManager')
 export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     @property({ type: Object(BaseModel.LayoutBase) })
-    private multipleHistoryLayoutBase: BaseModel.LayoutBase<CashoutObj> = null;
+    private cashoutLayoutBase: BaseModel.LayoutBase<CashoutObj> = null;
 
     start() {
-        this.multipleHistoryLayoutBase.init(CashoutObj, 5);
-        this.updateMoneyList([1000, 2000, 3000, 4000]);
-        this.scheduleOnce(() => {
-            this.showWinList([
-                { win: 1000, multiple: 1 },
-                { win: 2000, multiple: 2 },
-                { win: 3000, multiple: 3 }
-            ]);
-            this.showFailList([false, false, false, true]);
-        }, 1);
+        this.cashoutLayoutBase.init(CashoutObj, 5);
+        this.cashoutLayoutBase.objs.forEach((obj) => {
+            obj.node.active = false;
+        })
+        // this.updateMoneyList([1000, 2000, 3000, 4000]);
+        // this.scheduleOnce(() => {
+        //     this.showWinList([
+        //         { win: 1000, multiple: 1 },
+        //         { win: 2000, multiple: 2 },
+        //         { win: 3000, multiple: 3 }
+        //     ]);
+        //     this.showFailList([false, false, false, true]);
+        // }, 1);
     }
 
     update(deltaTime: number) {
@@ -26,7 +29,7 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     }
 
     public updateMoneyList(moneys: number[]) {
-        this.multipleHistoryLayoutBase.objs.forEach((obj, index) => {
+        this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const money = moneys[index];
             if (money === undefined) {
                 obj.node.active = false;
@@ -37,7 +40,7 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     }
 
     public showWinList(winDatas: WinData[]) {
-        this.multipleHistoryLayoutBase.objs.forEach((obj, index) => {
+        this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const winData = winDatas[index];
             if (winData !== undefined) {
                 obj.showWin(winData);
@@ -46,7 +49,7 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     }
 
     public showFailList(failDatas: boolean[]) {
-        this.multipleHistoryLayoutBase.objs.forEach((obj, index) => {
+        this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const failData = failDatas[index];
             if (failData === true) {
                 obj.showFail();

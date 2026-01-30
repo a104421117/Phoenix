@@ -60,6 +60,7 @@ export class NumberSelector extends Component {
     /** 設置可選值陣列 */
     public set Values(vals: number[]) {
         this.values = vals;
+        this.reset();
     }
 
     // ===== Lifecycle =====

@@ -51,17 +51,6 @@ export class CashoutObj extends NodeSwitcher {
     public showFail() {
         this.switch(CashoutType.Fail);
     }
-
-    private set Win(win: number) {
-        const winStr = BaseModel.getFormatNum(win);
-        this.winLabel.string = winStr;
-        this.switch(CashoutType.Btn);
-    }
-
-    private set Multiple(multiple: number) {
-        const multipleStr = BaseModel.getRoundToStr(multiple, 2);
-        this.multipleLabel.string = multipleStr;
-    }
 }
 
 export type WinData = {

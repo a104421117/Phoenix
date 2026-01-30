@@ -23,7 +23,7 @@ export class MultipleHistoryManager extends BaseModel.Singleton<MultipleHistoryM
 
     }
 
-    public initMultipleHistoryList(multipleHistoryDatas: number[]): void {
+    private initMultipleHistoryList(multipleHistoryDatas: number[]): void {
         this.multipleHistoryLayoutBase.objs.forEach((obj, index) => {
             const multipleHistoryData = multipleHistoryDatas[multipleHistoryDatas.length - index - 1];
             if (multipleHistoryData === undefined) {
@@ -34,7 +34,7 @@ export class MultipleHistoryManager extends BaseModel.Singleton<MultipleHistoryM
         });
     }
 
-    public initMultipleHistoryPageList(multipleHistoryPageDatas: number[]): void {
+    private initMultipleHistoryPageList(multipleHistoryPageDatas: number[]): void {
         this.multipleHistoryPageLayoutBase.objs.forEach((obj, index, objs) => {
             const multipleHistoryData = multipleHistoryPageDatas[multipleHistoryPageDatas.length - index - 1];
             if (multipleHistoryData === undefined) {

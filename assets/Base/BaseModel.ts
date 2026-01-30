@@ -1,6 +1,4 @@
-import { _decorator, Component, Node, instantiate, Prefab, Button } from 'cc';
-
-
+import { _decorator, Component, Node, instantiate, Prefab } from 'cc';
 const { ccclass, property } = _decorator;
 
 export namespace BaseModel {
@@ -46,9 +44,6 @@ export namespace BaseModel {
             return sign + getThousandth(num);
         }
     }
-    export function getSingleton<T extends Singleton<T>>(cls: new () => T): T {
-        return Singleton.getInstance.call(cls);
-    }
     export class Singleton<T> extends Component {
         private static _instances: Map<string, any> = new Map();
 
@@ -92,33 +87,6 @@ export namespace BaseModel {
                 this.objs.push(comp);
                 this.layout.addChild(node);
             }
-        }
-    }
-    @ccclass('Page')
-    export class Page {
-        @property({ type: Node })
-        private Page: Node;
-
-        @property({ type: Button })
-        private openBtn: Button;
-
-        @property({ type: Button })
-        private closeBtn: Button;
-
-        public init() {
-            this.Page.active = false;
-            if (this.openBtn) this.openBtn.node.on(Button.EventType.CLICK, this.openPage.bind(this));
-            if (this.closeBtn) this.closeBtn.node.on(Button.EventType.CLICK, this.closePage.bind(this));
-        }
-
-        protected openPage() {
-            console.log("openPage");
-            this.Page.active = true;
-        }
-
-        protected closePage() {
-            console.log("closePage");
-            this.Page.active = false;
         }
     }
 }

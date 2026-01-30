@@ -1,0 +1,89 @@
+WebSocket 連線:
+ws://localhost:8080/ws/fengfeifei@$_$@Jack?table=A
+
+下注倒數開始（Server → Client）:
+{
+  "cmd": "BettingStart",
+  "data": {
+    "seconds": 10
+  }
+}
+
+玩家下注（Client → Server）:
+{
+  "cmd": "Bet",
+  "data": {
+    "index": 0,
+    "amount": 100
+  }
+}
+
+下注成功（Server → Client）:
+{
+  "cmd": "BetOK",
+  "data": {
+    "index": 0
+  }
+}
+
+回合開始/停止下注（Server → Client）:
+{
+  "cmd": "RoundStart"
+}
+
+飛行中同步（Server → Client，連續）:
+{
+  "cmd": "Flying",
+  "data": {
+    "serverTime": 1702881234.123,
+    "elapsed": 1.237,
+    "multiplier": 1.85
+  }
+}
+
+玩家提取（Client → Server）:
+{
+  "cmd": "Cashout",
+  "data": {
+    "index": 0
+  }
+}
+
+玩家獲勝（Server → Client）:
+{
+  "cmd": "Win",
+  "data": {
+    "index": 0,
+    "amount": 100,
+    "multiplier": 1.85,
+    "win": 185
+  }
+}
+
+爆炸事件（Server → 全體）:
+{
+  "cmd": "Explode",
+  "data": {
+    "multiplier": 2.31
+  }
+}
+
+未提取下注失敗（Server → Client）:
+{
+  "cmd": "Lose",
+  "data": {
+    "index": 2
+  }
+}
+
+下一局自動開始（Server → Client）:
+{
+  "cmd": "BettingStart",
+  "data": {
+    "seconds": 10
+  }
+}
+
+登出 / 離線:
+ws.close();
+
