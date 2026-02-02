@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, instantiate, Prefab } from 'cc';
+import { _decorator, Component, Node, instantiate, Prefab, EventTarget } from 'cc';
 const { ccclass, property } = _decorator;
 
 export namespace BaseModel {
@@ -70,6 +70,35 @@ export namespace BaseModel {
             }
         }
     }
+    /**
+     * 倒數計時
+     * @param seconds 倒數秒數
+     * @param onUpdate 每秒回呼，參數為剩餘秒數
+     * @param onComplete 倒數結束回呼
+     * @returns 取消倒數的函式
+     */
+    export function countdown(
+        seconds: number,
+        onUpdate?: (remaining: number) => void,
+        onComplete?: () => void
+    ): () => void {
+        let remaining = Math.floor(seconds);
+        onUpdate?.(remaining);
+
+        const intervalId = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(intervalId);
+                onUpdate?.(0);
+                onComplete?.();
+            } else {
+                onUpdate?.(remaining);
+            }
+        }, 1000);
+
+        return () => clearInterval(intervalId);
+    }
+
     @ccclass('LayoutBase')
     export class LayoutBase<T extends Component> {
         @property({ type: Prefab })
@@ -87,6 +116,23 @@ export namespace BaseModel {
                 this.objs.push(comp);
                 this.layout.addChild(node);
             }
+        }
+    }
+    export class GameEvent<Model extends string, Map extends Record<Model, any>> {
+        protected eventTarget = new EventTarget();
+        /** 監聽伺服器指令事件 */
+        public on<T extends Model>(cmd: T, callback: (data: Map[T]) => void, target?: any) {
+            this.eventTarget.on(cmd, callback, target);
+        }
+
+        /** 取消監聯伺服器指令事件 */
+        public off<T extends Model>(cmd: T) {
+            this.eventTarget.off(cmd);
+        }
+
+        /** 監聽伺服器指令事件 */
+        public once<T extends Model>(cmd: T, callback: (data: Map[T]) => void, target?: any) {
+            this.eventTarget.once(cmd, callback, target);
         }
     }
 }

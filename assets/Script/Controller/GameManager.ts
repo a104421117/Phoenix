@@ -1,7 +1,7 @@
 import { _decorator, Component, Node } from 'cc';
-import { Login, ServerCmd, WebsocketManager } from '../Model/SocketManager';
 import { BaseModel } from '../../Base/BaseModel';
 import { GameData } from '../Model/GameData';
+import { WebsocketManager, ServerCmd } from '../Model/WebsocketManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
@@ -11,14 +11,13 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
             (ws: WebSocket) => { },
             (event: CloseEvent) => { }
         );
-        websocketManager.on(ServerCmd.Login, GameData.getInstance().init.bind(GameData.getInstance()));
-        websocketManager.on(ServerCmd.BettingStart, ((data) => {  }));
+        const gameData = GameData.getInstance();
+        websocketManager.onMsg(ServerCmd.Login, gameData.login.bind(gameData));
+        websocketManager.onMsg(ServerCmd.BettingStart, gameData.bettingStart.bind(gameData));
+
     }
 
     update(deltaTime: number) {
 
     }
-
 }
-
-

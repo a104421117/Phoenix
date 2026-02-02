@@ -2,6 +2,7 @@ import { _decorator, Button, Component, Node } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { MultipleHistoryObj } from 'db://assets/Script/View/MultipleHistoryObj';
 import { MultipleHistoryPageObj } from 'db://assets/Script/View/MultipleHistoryPageObj';
+import { GameData, GmaeModel } from './GameData';
 const { ccclass, property } = _decorator;
 
 @ccclass('MultipleHistoryManager')
@@ -13,10 +14,11 @@ export class MultipleHistoryManager extends BaseModel.Singleton<MultipleHistoryM
     private multipleHistoryPageLayoutBase: BaseModel.LayoutBase<MultipleHistoryPageObj> = null;
 
     start() {
-        this.multipleHistoryLayoutBase.init(MultipleHistoryObj, 9);
+        this.multipleHistoryLayoutBase.init(MultipleHistoryObj, 8);
         this.multipleHistoryPageLayoutBase.init(MultipleHistoryPageObj, 100);
-        // this.initMultipleHistoryList([1, 2, 3, 5, 8, 13, 21, 34, 55]);
-        // this.initMultipleHistoryPageList([1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987]);
+        const gameData = GameData.getInstance();
+        gameData.on(GmaeModel.RoundHistory, this.initMultipleHistoryPageList.bind(this));
+        gameData.on(GmaeModel.RoundHistory, this.initMultipleHistoryList.bind(this));
     }
 
     update(deltaTime: number) {

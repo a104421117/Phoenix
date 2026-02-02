@@ -1,18 +1,11 @@
 import { _decorator, instantiate, Label, Layout, Node, Prefab } from 'cc';
 import { NodeSwitcher } from '../../Base/NodeSwitcher';
 import { BaseModel } from '../../Base/BaseModel';
+import { GameData, GmaeModel } from '../Model/GameData';
 const { ccclass, property } = _decorator;
 
 @ccclass('RankObj')
 export class RankObj extends NodeSwitcher {
-    // @property({ type: Prefab })
-    // private starObj: Prefab = null;
-
-    // @property({ type: Node })
-    // private starLayout: Node = null;
-
-    // private starObjs: NodeSwitcher[] = [];
-
     @property({ type: Object(BaseModel.LayoutBase) })
     private starLayoutBase: BaseModel.LayoutBase<NodeSwitcher> = null;
 
@@ -29,7 +22,12 @@ export class RankObj extends NodeSwitcher {
     private multipleLabel: Label = null;
 
     protected start(): void {
-        this.starLayoutBase.init(NodeSwitcher, 5);
+        const gameData = GameData.getInstance();
+        gameData.on(GmaeModel.MaxBetCount, this.setStar.bind(this));
+    }
+
+    private setStar(maxBetCount: number) {
+        this.starLayoutBase.init(NodeSwitcher, maxBetCount);
     }
 
     public updateRank(rankData: RankData) {

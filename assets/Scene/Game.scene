@@ -2032,7 +2032,7 @@
     "_prefab": null,
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 39,
+      "x": 0,
       "y": 5,
       "z": 0
     },
@@ -2071,7 +2071,7 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 702,
+      "width": 0,
       "height": 44
     },
     "_anchorPoint": {
@@ -2091,7 +2091,7 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "_resizeMode": 0,
+    "_resizeMode": 1,
     "_layoutType": 1,
     "_cellSize": {
       "__type__": "cc.Size",
@@ -18363,6 +18363,12 @@
       }
     ],
     "betNumericStepper": null,
+    "betBtn": {
+      "__id__": 147
+    },
+    "cashoutBtn": {
+      "__id__": 151
+    },
     "_id": "7dB3kQS7FMa7C/ZE+qFhYT"
   },
   {

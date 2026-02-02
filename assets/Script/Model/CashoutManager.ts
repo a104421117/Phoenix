@@ -1,6 +1,7 @@
 import { _decorator, Component, Node } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { CashoutObj, WinData } from '../View/CashoutObj';
+import { GameData, GmaeModel } from './GameData';
 const { ccclass, property } = _decorator;
 
 @ccclass('CashoutManager')
@@ -9,10 +10,9 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     private cashoutLayoutBase: BaseModel.LayoutBase<CashoutObj> = null;
 
     start() {
-        this.cashoutLayoutBase.init(CashoutObj, 5);
-        this.cashoutLayoutBase.objs.forEach((obj) => {
-            obj.node.active = false;
-        })
+        const gameData = GameData.getInstance();
+        gameData.on(GmaeModel.MaxBetCount, this.setMaxBetCount.bind(this));
+
         // this.updateMoneyList([1000, 2000, 3000, 4000]);
         // this.scheduleOnce(() => {
         //     this.showWinList([
@@ -28,7 +28,14 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
 
     }
 
-    public updateMoneyList(moneys: number[]) {
+    private setMaxBetCount(maxBetCount: number) {
+        this.cashoutLayoutBase.init(CashoutObj, maxBetCount);
+        this.cashoutLayoutBase.objs.forEach((obj) => {
+            obj.node.active = false;
+        })
+    }
+
+    private updateMoneyList(moneys: number[]) {
         this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const money = moneys[index];
             if (money === undefined) {
@@ -39,7 +46,7 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
         });
     }
 
-    public showWinList(winDatas: WinData[]) {
+    private showWinList(winDatas: WinData[]) {
         this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const winData = winDatas[index];
             if (winData !== undefined) {
@@ -48,7 +55,7 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
         });
     }
 
-    public showFailList(failDatas: boolean[]) {
+    private showFailList(failDatas: boolean[]) {
         this.cashoutLayoutBase.objs.forEach((obj, index) => {
             const failData = failDatas[index];
             if (failData === true) {

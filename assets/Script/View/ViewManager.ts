@@ -2,7 +2,7 @@ import { _decorator, Button, Component, Label, Node } from 'cc';
 import { NodeSwitcher } from '../../Base/NodeSwitcher';
 import { BaseModel } from '../../Base/BaseModel';
 import { NumberSelector } from '../../Base/NumberSelector';
-import { GameData, Model } from '../Model/GameData';
+import { GameData, GmaeModel } from '../Model/GameData';
 const { ccclass, property } = _decorator;
 
 @ccclass('ViewManager')
@@ -33,11 +33,11 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
             settingBtn.node.on(Button.EventType.CLICK, this.openPage.bind(this, 0));
         });
         const gameData = GameData.getInstance();
-        gameData.on(Model.ID, this.setID.bind(this));
-        gameData.on(Model.Balance, this.setBalance.bind(this));
-        gameData.on(Model.BetOptions, this.setBetOptions.bind(this));
-        // gameData.on(Model.ID, this.setID.bind(this));
-        // gameData.on(Model.ID, this.setID.bind(this));
+        gameData.on(GmaeModel.ID, this.setID.bind(this));
+        gameData.on(GmaeModel.Balance, this.setBalance.bind(this));
+        gameData.on(GmaeModel.BetOptions, this.setBetOptions.bind(this));
+        // gameData.on(GmaeModel.ID, this.setID.bind(this));
+        // gameData.on(GmaeModel.ID, this.setID.bind(this));
 
     }
 
