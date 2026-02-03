@@ -5,12 +5,36 @@ import { NumberSelector } from '../../Base/NumberSelector';
 import { GameData, GmaeModel } from '../Model/GameData';
 const { ccclass, property } = _decorator;
 
+enum State {
+    BettingCountdown = 0,
+    Multiplier = 1,
+    Explode = 2,
+};
+
+enum Normal {
+    IdleNode = -1,
+    BetNode = 0,
+    CashoutNode = 1,
+};
+
 @ccclass('ViewManager')
 export class ViewManager extends BaseModel.Singleton<ViewManager> {
     @property({ type: Label })
     private IDLabel: Label = null;
     @property({ type: Label })
     private balanceLabel: Label = null;
+    @property({ type: Label })
+    private bettingCountdownLabel: Label = null;
+    @property({ type: NodeSwitcher })
+    private stateNodeSwitcher: NodeSwitcher = null;
+    @property({ type: NodeSwitcher })
+    private normalNodeSwitcher: NodeSwitcher = null;
+    @property({ type: Label })
+    private multiplierLabel: Label = null;
+    @property({ type: Label })
+    private explodeLabel: Label = null;
+    @property({ type: Label })
+    private roundCountdownLabel: Label = null;
     @property({ type: NodeSwitcher })
     private popupsNodeSwitcher: NodeSwitcher = null;
     @property({ type: Array(Button) })
@@ -21,23 +45,31 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
     private settingBtns: Button[] = [];
     @property({ type: Array(NumberSelector) })
     private betNumericStepper: NumberSelector;
-
+    @property({ type: Button })
+    private betBtn: Button = null;
+    @property({ type: Button })
+    private cashoutBtn: Button = null;
     start() {
         this.openPageBtns.forEach((btn, index) => {
-            if (btn) btn.node.on(Button.EventType.CLICK, this.openPage.bind(this, index));
+            btn?.node.on(Button.EventType.CLICK, this.openPage.bind(this, index));
         });
         this.closeBtns.forEach((closeBtn) => {
-            closeBtn.node.on(Button.EventType.CLICK, this.closePage.bind(this));
+            closeBtn?.node.on(Button.EventType.CLICK, this.closePage.bind(this));
         });
         this.settingBtns.forEach((settingBtn) => {
-            settingBtn.node.on(Button.EventType.CLICK, this.openPage.bind(this, 0));
+            settingBtn?.node.on(Button.EventType.CLICK, this.openPage.bind(this, 0));
         });
+        // this.betBtn.node.on(Button.EventType.CLICK,);
+        // this.cashoutBtn.node.on(Button.EventType.CLICK,);
         const gameData = GameData.getInstance();
-        gameData.on(GmaeModel.ID, this.setID.bind(this));
+        gameData.on(GmaeModel.Name, this.setID.bind(this));
         gameData.on(GmaeModel.Balance, this.setBalance.bind(this));
         gameData.on(GmaeModel.BetOptions, this.setBetOptions.bind(this));
-        // gameData.on(GmaeModel.ID, this.setID.bind(this));
-        // gameData.on(GmaeModel.ID, this.setID.bind(this));
+        gameData.on(GmaeModel.BettingStart, this.setBettingStart.bind(this));
+        gameData.on(GmaeModel.BettingCountdown, this.setBettingCountdown.bind(this));
+        gameData.on(GmaeModel.RoundCountdown, this.setRoundCountdown.bind(this));
+        gameData.on(GmaeModel.Multiplier, this.setMultiplier.bind(this));
+        gameData.on(GmaeModel.Explode, this.setExplode.bind(this));
 
     }
 
@@ -64,6 +96,31 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
 
     private setBetOptions(bets: number[]) {
         this.betNumericStepper.Values = bets;
+    }
+
+    private setBettingStart(remaining: number) {
+        this.stateNodeSwitcher.switch(State.BettingCountdown);
+        this.normalNodeSwitcher.switch(Normal.BetNode);
+        this.bettingCountdownLabel.string = `${Math.ceil(remaining)}`;
+    }
+
+    private setBettingCountdown(remaining: number) {
+        this.bettingCountdownLabel.string = `${Math.ceil(remaining)}s`;
+    }
+
+    private setMultiplier(multiplier: number) {
+        this.stateNodeSwitcher.switch(State.Multiplier);
+        this.normalNodeSwitcher.switch(Normal.CashoutNode);
+        this.multiplierLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+    }
+
+    private setExplode(multiplier: number) {
+        this.stateNodeSwitcher.switch(State.Explode);
+        this.explodeLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+    }
+
+    private setRoundCountdown(remaining: number) {
+        this.roundCountdownLabel.string = `${Math.ceil(remaining)}s`;
     }
 }
 

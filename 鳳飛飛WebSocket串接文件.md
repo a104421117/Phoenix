@@ -34,13 +34,11 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
         ↓
    玩家發送 Bet → 收到 BetOK
         ↓
-   RoundStart（停止下注，開始飛行）
-        ↓
-   Flying（每100ms更新倍數）
+   Flying（每100ms更新倍數，從0.00開始）
         ↓
    玩家發送 Cashout → 收到 Win
         ↓
-   Explode（爆炸）→ 未取出的注收到 Lose
+   Explode（爆炸，帶5秒倒數）→ 未取出的注收到 Lose
         ↓
    等待5秒 → 回到 BettingStart
 ```
@@ -62,10 +60,7 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
     "balance": 50000,
     "betOptions": [100, 500, 1000, 5000, 10000],
     "maxBetCount": 5,
-    "history": [
-      { "roundId": 100, "multiplier": 2.35, "timestamp": 1706500000000 },
-      { "roundId": 99,  "multiplier": 1.12, "timestamp": 1706499970000 }
-    ]
+    "roundHistory": [1.12, 2.35, 1.87, 3.42, 1.05]
   }
 }
 ```
@@ -77,10 +72,7 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 | `balance` | number | 目前餘額 |
 | `betOptions` | number[] | 可選押注金額列表 |
 | `maxBetCount` | number | 每局最多可下注筆數 |
-| `history` | array | 近100局歷史紀錄 |
-| `history[].roundId` | number | 局號 |
-| `history[].multiplier` | number | 該局爆炸倍數 |
-| `history[].timestamp` | number | 時間戳(毫秒) |
+| `roundHistory` | number[] | 近100局爆炸倍數陣列（index 0 = 最舊） |
 
 ---
 
@@ -122,21 +114,7 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 
 ---
 
-### 4. RoundStart（回合開始）
-
-下注時間結束，停止接受下注，飛行即將開始。
-
-```json
-{
-  "cmd": "RoundStart"
-}
-```
-
-無 `data` 欄位。
-
----
-
-### 5. Flying（飛行中同步）
+### 4. Flying（飛行中同步）
 
 飛行階段每 100ms 廣播一次。
 
@@ -181,7 +159,7 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 
 ---
 
-### 6. Win（取出成功）
+### 5. Win（取出成功）
 
 玩家手動取出或自動取出時，僅發送給該玩家。
 
@@ -208,15 +186,16 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 
 ---
 
-### 7. Explode（爆炸）
+### 6. Explode（爆炸）
 
-飛行結束，廣播給所有玩家。
+飛行結束，廣播給所有玩家。同時帶下局開始倒數秒數。
 
 ```json
 {
   "cmd": "Explode",
   "data": {
-    "multiplier": 2.35
+    "multiplier": 2.35,
+    "seconds": 5
   }
 }
 ```
@@ -224,10 +203,11 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | `multiplier` | number | 爆炸時的倍數 |
+| `seconds` | number | 下局開始倒數秒數（預設5秒） |
 
 ---
 
-### 8. Lose（未取出）
+### 7. Lose（未取出）
 
 爆炸後，對每筆未取出的投注發送給對應玩家。
 
@@ -303,6 +283,6 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 | 每局最多押注筆數 | 5 |
 | 服務費率 | 5% |
 | 倍數更新頻率 | 100ms |
-| 倍數公式 | `e^(0.06 × t)` （t為秒數） |
+| 倍數公式 | `e^(0.06 × t) - 1` （t為秒數，從0.00開始） |
 | 排行顯示 | 前6名（依投注額排序） |
 | 歷史紀錄 | 最多100局 |

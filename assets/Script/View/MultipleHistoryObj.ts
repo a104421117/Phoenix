@@ -15,9 +15,6 @@ enum MultipleHistoryColor {
 export class MultipleHistoryObj extends NodeSwitcher {
     @property({ type: Array(Label) })
     private multipleHistoryLabels: Label[] = [];
-
-    private index: MultipleHistoryColor = MultipleHistoryColor.Gray;
-
     public set MultipleHistory(multipleHistory: number) {
         if (multipleHistory > 20) {
             this.index = MultipleHistoryColor.Red;

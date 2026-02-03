@@ -1,7 +1,7 @@
 import { _decorator, Component, Node, EventTarget } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { GmaeModel, GmaeModelMap } from './GameModel';
-import { BettingStart, Login } from './ServerModel';
+import { BettingStart, Explode, Flying, Login } from './ServerModel';
 
 export { GmaeModel, type GmaeModelMap } from './GameModel';
 export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
@@ -49,7 +49,6 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
         this.eventTarget.emit(GmaeModel.RoundHistory, roundHistory);
         this.roundHistory = roundHistory;
     }
-    
 
     public static getInstance(): GameData {
         if (!this.instance) this.instance = new GameData();
@@ -65,13 +64,28 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
         this.RoundHistory = data.roundHistory;
     }
 
-    private cancelCountdown: () => void = null;
+    private cancelBettingCountdown: () => void = null;
+    private cancelRoundCountdown: () => void = null;
 
     public bettingStart(data: BettingStart) {
-        if (this.cancelCountdown) this.cancelCountdown();
-        this.cancelCountdown = BaseModel.countdown(
+        if (this.cancelBettingCountdown) this.cancelBettingCountdown();
+        this.eventTarget.emit(GmaeModel.BettingStart, data.seconds);
+        this.cancelBettingCountdown = BaseModel.countdown(
             data.seconds,
             (remaining) => this.eventTarget.emit(GmaeModel.BettingCountdown, remaining),
+        );
+    }
+
+    public flying(data: Flying) {
+        this.eventTarget.emit(GmaeModel.Multiplier, data.multiplier);
+    }
+
+    public explode(data: Explode) {
+        if (this.cancelRoundCountdown) this.cancelRoundCountdown();
+        this.eventTarget.emit(GmaeModel.Explode, data.multiplier);
+        this.cancelRoundCountdown = BaseModel.countdown(
+            5,
+            (remaining) => this.eventTarget.emit(GmaeModel.RoundCountdown, remaining),
         );
     }
 

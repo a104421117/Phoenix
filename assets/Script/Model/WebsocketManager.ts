@@ -55,14 +55,4 @@ export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMa
         const msg: Client<T> = { cmd, data };
         this.ws.send(JSON.stringify(msg));
     }
-
-    /** 監聽伺服器指令事件 */
-    public onMsg<T extends ServerCmd>(cmd: T, callback: (data: ServerCmdMap[T]) => void, target?: any) {
-        this.eventTarget.on(cmd, callback, target);
-    }
-
-    /** 監聽伺服器指令事件 */
-    public onceMsg<T extends ServerCmd>(cmd: T, callback: (data: ServerCmdMap[T]) => void, target?: any) {
-        this.eventTarget.once(cmd, callback, target);
-    }
 }

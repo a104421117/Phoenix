@@ -6,7 +6,11 @@ export enum GmaeModel {
     MaxBetCount = "MaxBetCount",
     RoundHistory = "RoundHistory",
     AddRoundHistory = "AddRoundHistory",
+    BettingStart = "BettingStart",
     BettingCountdown = "BettingCountdown",
+    RoundCountdown = "RoundCountdown",
+    Multiplier = "Multiplier",
+    Explode = "Explode",
 };
 
 export type GmaeModelMap = {
@@ -17,5 +21,9 @@ export type GmaeModelMap = {
     [GmaeModel.MaxBetCount]: number;
     [GmaeModel.RoundHistory]: number[];
     [GmaeModel.AddRoundHistory]: number;
+    [GmaeModel.BettingStart]: number;
     [GmaeModel.BettingCountdown]: number;
+    [GmaeModel.RoundCountdown]: number;
+    [GmaeModel.Multiplier]: number;
+    [GmaeModel.Explode]: number;
 }

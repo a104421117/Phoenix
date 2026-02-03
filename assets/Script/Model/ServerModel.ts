@@ -37,10 +37,28 @@ export type BetOK = { index: number; };
 
 export type RoundStart = {};
 
+/** 玩家單筆投注資訊 */
+export type RankBet = {
+    amount: number;
+    cashedOut: boolean;
+    cashoutMultiplier: number;
+    profit: number;
+};
+
+/** 排行榜玩家資訊 */
+export type RankPlayer = {
+    id: string;
+    name: string;
+    avatar: string;
+    totalBet: number;
+    bets: RankBet[];
+};
+
 export type Flying = {
-    serverTime: Date;
+    serverTime: number;
     elapsed: number;
     multiplier: number;
+    rank: RankPlayer[];
 };
 
 export type Win = {
@@ -50,6 +68,9 @@ export type Win = {
     win: number;
 };
 
-export type Explode = { multiplier: number; };
+export type Explode = {
+    multiplier: number;
+    seconds: number;
+};
 
 export type Lose = { index: number; };

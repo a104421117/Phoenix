@@ -17,8 +17,8 @@ export class MultipleHistoryManager extends BaseModel.Singleton<MultipleHistoryM
         this.multipleHistoryLayoutBase.init(MultipleHistoryObj, 8);
         this.multipleHistoryPageLayoutBase.init(MultipleHistoryPageObj, 100);
         const gameData = GameData.getInstance();
-        gameData.on(GmaeModel.RoundHistory, this.initMultipleHistoryPageList.bind(this));
         gameData.on(GmaeModel.RoundHistory, this.initMultipleHistoryList.bind(this));
+        gameData.on(GmaeModel.RoundHistory, this.initMultipleHistoryPageList.bind(this));
     }
 
     update(deltaTime: number) {

@@ -1,0 +1,25 @@
+{
+  "name": "csv-position-importer",
+  "version": "1.0.0",
+  "description": "從 CSV 匯入節點座標（配合 PS to Cocos Creator 腳本使用）",
+  "main": "./dist/main.js",
+  "author": "",
+  "editor": ">=3.8.0",
+  "contributions": {
+    "menu": [
+      {
+        "path": "工具/CSV 座標匯入",
+        "label": "匯入 CSV 座標...",
+        "message": "open-panel"
+      }
+    ],
+    "messages": {
+      "open-panel": {
+        "methods": ["openPanel"]
+      },
+      "import-csv": {
+        "methods": ["importCSV"]
+      }
+    }
+  }
+}
