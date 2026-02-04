@@ -1,7 +1,7 @@
 import { _decorator, Component, Node, EventTarget } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { GmaeModel, GmaeModelMap } from './GameModel';
-import { BettingStart, Explode, Flying, Login } from './ServerModel';
+import { BettingStart, Explode, Flying, Login } from './WebsocketModel';
 
 export { GmaeModel, type GmaeModelMap } from './GameModel';
 export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {

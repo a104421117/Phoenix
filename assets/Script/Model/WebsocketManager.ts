@@ -1,10 +1,10 @@
 import { error, log } from "cc";
-import { Client, ClientCmd, ClientCmdMap } from "./ClientModel";
-import { ServerCmd, ServerCmdMap } from "./ServerModel";
+import { Client, ClientCmd, ClientCmdMap } from "./WebsocketModel";
+import { ServerCmd, ServerCmdMap } from "./WebsocketModel";
 import { BaseModel } from "../../Base/BaseModel";
 
-export { ClientCmd, type Client, type ClientCmdMap } from "./ClientModel";
-export { ServerCmd, type ServerCmdMap } from "./ServerModel";
+export { ClientCmd, type Client, type ClientCmdMap } from "./WebsocketModel";
+export { ServerCmd, type ServerCmdMap } from "./WebsocketModel";
 export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMap> {
     private ws: WebSocket = null;
     private static instance: WebsocketManager = null;

@@ -2,7 +2,7 @@ import { _decorator, Component, Node } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { GameData } from '../Model/GameData';
 import { WebsocketManager, ServerCmd, ClientCmd } from '../Model/WebsocketManager';
-import { Bet } from '../Model/ClientModel';
+import { Bet } from '../Model/WebsocketModel';
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
