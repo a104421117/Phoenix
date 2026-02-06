@@ -1,11 +1,14 @@
-import { _decorator, Component, Node, EventTarget } from 'cc';
+import { _decorator, Component, Node, EventTarget, log } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { GmaeModel, GmaeModelMap } from './GameModel';
-import { BettingStart, Explode, Flying, Login } from './WebsocketModel';
+import { Bet, BetOK, BettingStart, ClientCmd, Explode, Flying, Login, ServerCmd } from './WebsocketModel';
+import { WebsocketManager } from './WebsocketManager';
 
 export { GmaeModel, type GmaeModelMap } from './GameModel';
 export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
-    private constructor() { super(); }
+    private constructor() {
+        super();
+    }
     private static instance: GameData = null;
     private id: string = '';
     private name: string = '';
@@ -13,6 +16,8 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     private betOptions: number[] = [];
     private maxBetCount: number = 0;
     private roundHistory: number[] = [];
+    private amountArr: number[] = [0, 0, 0, 0, 0];
+    private betIndex: number = 0;
 
     public get ID(): string { return this.id; }
     public set ID(id: string) {
@@ -56,6 +61,7 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     }
 
     public login(data: Login) {
+        log(data);
         this.ID = data.id;
         this.Name = data.name;
         this.Balance = data.balance;
@@ -68,30 +74,52 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     private cancelRoundCountdown: () => void = null;
 
     public bettingStart(data: BettingStart) {
+        log("BettingStart", data);
         if (this.cancelBettingCountdown) this.cancelBettingCountdown();
-        this.eventTarget.emit(GmaeModel.BettingStart, data.seconds);
         this.cancelBettingCountdown = BaseModel.countdown(
             data.seconds,
             (remaining) => this.eventTarget.emit(GmaeModel.BettingCountdown, remaining),
         );
+        this.betIndex = 0;
+    }
+
+    public betOK(data: BetOK) {
+        log(data);
+        if (data.index < this.maxBetCount - 1) {
+            this.betIndex = data.index + 1;
+        }
+        this.amountArr[data.index];
+        this.eventTarget.emit(GmaeModel.BetOK, data);
     }
 
     public flying(data: Flying) {
+        log("Flying", data);
+        this.eventTarget.emit(GmaeModel.Multiplier, data.multiplier);
         this.eventTarget.emit(GmaeModel.Multiplier, data.multiplier);
     }
 
     public explode(data: Explode) {
-        if (this.cancelRoundCountdown) this.cancelRoundCountdown();
+        log(data);
         this.eventTarget.emit(GmaeModel.Explode, data.multiplier);
+        this.addRoundHistory(data.multiplier);
+        if (this.cancelRoundCountdown) this.cancelRoundCountdown();
         this.cancelRoundCountdown = BaseModel.countdown(
-            5,
+            data.seconds,
             (remaining) => this.eventTarget.emit(GmaeModel.RoundCountdown, remaining),
         );
     }
 
     /** 新增歷史紀錄 */
-    public addRoundHistory(roundHistory: number) {
-        this.eventTarget.emit(GmaeModel.AddRoundHistory, roundHistory);
+    private addRoundHistory(roundHistory: number) {
         this.roundHistory.push(roundHistory);
+        this.eventTarget.emit(GmaeModel.RoundHistory, this.roundHistory);
+    }
+
+    public sendBet(amount: number) {
+        const bet: Bet = {
+            index: this.betIndex,
+            amount: amount
+        }
+        WebsocketManager.getInstance().send(ClientCmd.Bet, bet);
     }
 }

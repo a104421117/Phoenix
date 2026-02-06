@@ -15,7 +15,7 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
         const gameData = GameData.getInstance();
         websocketManager.on(ServerCmd.Login, gameData.login.bind(gameData));
         websocketManager.on(ServerCmd.BettingStart, gameData.bettingStart.bind(gameData));
-        // websocketManager.onMsg(ServerCmd.BetOK, gameData.bettingStart.bind(gameData));
+        websocketManager.on(ServerCmd.BetOK, gameData.betOK.bind(gameData));
         // websocketManager.onMsg(ServerCmd.RoundStart, gameData.roundStart.bind(gameData));
         websocketManager.on(ServerCmd.Flying, gameData.flying.bind(gameData));
         websocketManager.on(ServerCmd.Explode, gameData.explode.bind(gameData));
@@ -23,13 +23,5 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
 
     update(deltaTime: number) {
 
-    }
-
-    public betToServer(index: number, amount: number) {
-        const bet: Bet = {
-            index: 0,
-            amount: 0
-        }
-        WebsocketManager.getInstance().send(ClientCmd.Bet, bet);
     }
 }

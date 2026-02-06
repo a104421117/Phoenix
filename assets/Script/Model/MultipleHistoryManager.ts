@@ -29,7 +29,7 @@ export class MultipleHistoryManager extends BaseModel.Singleton<MultipleHistoryM
         this.multipleHistoryLayoutBase.objs.forEach((obj, index) => {
             const multipleHistoryData = multipleHistoryDatas[multipleHistoryDatas.length - index - 1];
             if (multipleHistoryData === undefined) {
-                obj.node.active = false;
+                obj.MultipleHistory = -1;
             } else {
                 obj.MultipleHistory = multipleHistoryData;
             }

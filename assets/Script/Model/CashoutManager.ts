@@ -1,7 +1,8 @@
-import { _decorator, Component, Node } from 'cc';
+import { _decorator, Button, Component, Node } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { CashoutObj, WinData } from '../View/CashoutObj';
 import { GameData, GmaeModel } from './GameData';
+import { BetOK } from './WebsocketModel';
 const { ccclass, property } = _decorator;
 
 @ccclass('CashoutManager')
@@ -12,6 +13,11 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
     start() {
         const gameData = GameData.getInstance();
         gameData.on(GmaeModel.MaxBetCount, this.setMaxBetCount.bind(this));
+        gameData.on(GmaeModel.BetOK, this.setBetOK.bind(this));
+
+        this.cashoutLayoutBase.objs.forEach((obj, index) => {
+            obj.betBtn.node.on(Button.EventType.CLICK, obj.sendCashout.bind(obj, index));
+        })
 
         // this.updateMoneyList([1000, 2000, 3000, 4000]);
         // this.scheduleOnce(() => {
@@ -33,6 +39,11 @@ export class CashoutManager extends BaseModel.Singleton<CashoutManager> {
         this.cashoutLayoutBase.objs.forEach((obj) => {
             obj.node.active = false;
         })
+    }
+
+    private setBetOK(betOK: BetOK) {
+        this.cashoutLayoutBase.objs[betOK.index].Money = betOK.amount;
+        this.cashoutLayoutBase.objs[betOK.index].node.active = true;
     }
 
     private updateMoneyList(moneys: number[]) {

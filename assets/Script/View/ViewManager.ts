@@ -3,6 +3,7 @@ import { NodeSwitcher } from '../../Base/NodeSwitcher';
 import { BaseModel } from '../../Base/BaseModel';
 import { NumberSelector } from '../../Base/NumberSelector';
 import { GameData, GmaeModel } from '../Model/GameData';
+import { GameManager } from '../Controller/GameManager';
 const { ccclass, property } = _decorator;
 
 enum State {
@@ -59,7 +60,7 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
         this.settingBtns.forEach((settingBtn) => {
             settingBtn?.node.on(Button.EventType.CLICK, this.openPage.bind(this, 0));
         });
-        // this.betBtn.node.on(Button.EventType.CLICK,);
+        this.betBtn.node.on(Button.EventType.CLICK, this.sendBet.bind(this));
         // this.cashoutBtn.node.on(Button.EventType.CLICK,);
         const gameData = GameData.getInstance();
         gameData.on(GmaeModel.Name, this.setID.bind(this));
@@ -105,6 +106,8 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
     }
 
     private setBettingCountdown(remaining: number) {
+        this.stateNodeSwitcher.switch(State.BettingCountdown);
+        this.normalNodeSwitcher.switch(Normal.BetNode);
         this.bettingCountdownLabel.string = `${Math.ceil(remaining)}s`;
     }
 
@@ -121,6 +124,10 @@ export class ViewManager extends BaseModel.Singleton<ViewManager> {
 
     private setRoundCountdown(remaining: number) {
         this.roundCountdownLabel.string = `${Math.ceil(remaining)}s`;
+    }
+
+    private sendBet() {
+        GameData.getInstance().sendBet(this.betNumericStepper.currentValue);
     }
 }
 

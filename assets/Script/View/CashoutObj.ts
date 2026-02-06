@@ -1,6 +1,7 @@
-import { _decorator, Component, Label, Node } from 'cc';
+import { _decorator, Button, Component, Label, Node } from 'cc';
 import { NodeSwitcher } from '../../Base/NodeSwitcher';
 import { BaseModel } from '../../Base/BaseModel';
+import { BetOK } from '../Model/WebsocketModel';
 const { ccclass, property } = _decorator;
 
 enum CashoutType {
@@ -19,6 +20,9 @@ export class CashoutObj extends NodeSwitcher {
 
     @property({ type: Label })
     private multipleLabel: Label = null;
+
+    @property({ type: Button })
+    public betBtn: Button = null;
     start() {
         // this.switch(CashoutType.Btn);
         // this.Money = 10000;
@@ -50,6 +54,10 @@ export class CashoutObj extends NodeSwitcher {
 
     public showFail() {
         this.switch(CashoutType.Fail);
+    }
+
+    public sendCashout(data: BetOK) {
+        console.log(data.index);
     }
 }
 

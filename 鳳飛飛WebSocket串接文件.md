@@ -169,8 +169,9 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
   "data": {
     "index": 0,
     "amount": 1000,
-    "multiplier": 2.50,
-    "win": 2375
+    "multiplier": 1.08,
+    "win": 1026,
+    "profit": 26
   }
 }
 ```
@@ -181,8 +182,10 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 | `amount` | number | 原始投注金額 |
 | `multiplier` | number | 取出時倍數 |
 | `win` | number | 實際獲得金額（已扣5%服務費） |
+| `profit` | number | 該筆獲利（win - amount） |
 
 > **服務費計算：** `win = floor(amount × multiplier × 0.95)`
+> **獲利計算：** `profit = win - amount`
 
 ---
 
@@ -215,7 +218,8 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 {
   "cmd": "Lose",
   "data": {
-    "index": 0
+    "index": 0,
+    "profit": -1000
   }
 }
 ```
@@ -223,6 +227,7 @@ ws://localhost:7070/ws/fengfeifei@$_$@小明?table=A
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | `index` | number | 虧損的下注索引 |
+| `profit` | number | 該筆虧損（固定為 -amount） |
 
 ---
 

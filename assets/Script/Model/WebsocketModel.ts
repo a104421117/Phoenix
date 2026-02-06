@@ -61,7 +61,10 @@ export type Login = {
 
 export type BettingStart = { seconds: number; };
 
-export type BetOK = { index: number; };
+export type BetOK = {
+    index: number;
+    amount: number;
+};
 
 export type RoundStart = {};
 
@@ -94,6 +97,7 @@ export type Win = {
     amount: number;
     multiplier: number;
     win: number;
+    profit: number;
 };
 
 export type Explode = {
@@ -101,4 +105,4 @@ export type Explode = {
     seconds: number;
 };
 
-export type Lose = { index: number; };
+export type Lose = { index: number; profit: number; };

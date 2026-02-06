@@ -24,12 +24,16 @@ export class MultipleHistoryObj extends NodeSwitcher {
             this.index = MultipleHistoryColor.Bule;
         } else if (multipleHistory > 1) {
             this.index = MultipleHistoryColor.Green;
-        } else {
+        } else if (multipleHistory > 0) {
             this.index = MultipleHistoryColor.Gray;
+        } else {
+            this.index = -1;
         }
         this.switch(this.index);
-        const multipleHistoryStr = BaseModel.getRoundToStr(multipleHistory, 2);
-        this.multipleHistoryLabels[this.index].string = multipleHistoryStr;
+        if (this.index in MultipleHistoryColor) {
+            const multipleHistoryStr = BaseModel.getRoundToStr(multipleHistory, 2);
+            this.multipleHistoryLabels[this.index].string = multipleHistoryStr;
+        }
     }
 }
 

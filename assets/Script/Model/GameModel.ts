@@ -1,3 +1,5 @@
+import { Bet, BetOK } from "./WebsocketModel";
+
 export enum GmaeModel {
     ID = "ID",
     Name = "Name",
@@ -11,6 +13,8 @@ export enum GmaeModel {
     RoundCountdown = "RoundCountdown",
     Multiplier = "Multiplier",
     Explode = "Explode",
+    Bet = "Bet",
+    BetOK = "BetOK",
 };
 
 export type GmaeModelMap = {
@@ -26,4 +30,6 @@ export type GmaeModelMap = {
     [GmaeModel.RoundCountdown]: number;
     [GmaeModel.Multiplier]: number;
     [GmaeModel.Explode]: number;
+    [GmaeModel.Bet]: Bet;
+    [GmaeModel.BetOK]: BetOK;
 }
