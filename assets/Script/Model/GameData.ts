@@ -61,7 +61,7 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     }
 
     public login(data: Login) {
-        log(data);
+        log("Login", data);
         this.ID = data.id;
         this.Name = data.name;
         this.Balance = data.balance;
@@ -84,7 +84,7 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     }
 
     public betOK(data: BetOK) {
-        log(data);
+        log("BetOK", data);
         if (data.index < this.maxBetCount - 1) {
             this.betIndex = data.index + 1;
         }
@@ -99,7 +99,7 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     }
 
     public explode(data: Explode) {
-        log(data);
+        log("Explode", data);
         this.eventTarget.emit(GmaeModel.Explode, data.multiplier);
         this.addRoundHistory(data.multiplier);
         if (this.cancelRoundCountdown) this.cancelRoundCountdown();

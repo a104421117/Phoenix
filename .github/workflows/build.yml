@@ -27,12 +27,12 @@ jobs:
         id: cocos-cache
         with:
           path: ./CocosEditor
-          key: cocos-creator-3.8.7
+          key: cocos-creator-3.8.8
 
       - name: Download Cocos Creator Editor
         if: steps.cocos-cache.outputs.cache-hit != 'true'
         run: |
-          curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
+          curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.8/CocosCreator-v3.8.8-win-121518.zip"
           7z x CocosCreator.zip -oCocosEditor
           del CocosCreator.zip
           dir CocosEditor
@@ -40,11 +40,8 @@ jobs:
       - name: Cocos CLI Build
         shell: powershell
         timeout-minutes: 30
-        env:
-          COCOS_USER: ${{ secrets.COCOS_USER }}
-          COCOS_PWD: ${{ secrets.COCOS_PWD }}
         run: |
-          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false", "--login", "$env:COCOS_USER", "$env:COCOS_PWD" -PassThru
+          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false;md5Cache=true;" -PassThru
           $timeout = 600
           $timer = 0
           while (!$process.HasExited -and $timer -lt $timeout) {
@@ -97,10 +94,10 @@ jobs:
           name: web-mobile-build
           path: build/web-mobile
 
-      - name: Deploy to VM via SFTP
+      - name: Deploy to FTP Server
         run: |
           sudo apt-get update && sudo apt-get install -y lftp
           lftp -u "${{ secrets.SFTP_USERNAME }},${{ secrets.SFTP_PASSWORD }}" \
                -p ${{ secrets.SFTP_PORT }} \
-               sftp://${{ secrets.SFTP_HOST }} \
-               -e "set ssl:verify-certificate no; mirror -R ./build/web-mobile/ ${{ secrets.SFTP_REMOTE_PATH }}; quit"
+               ftp://${{ secrets.SFTP_HOST }} \
+               -e "set ssl:verify-certificate no; set ftp:list-options -a; mirror -R --delete --exclude .user.ini --parallel=5 ./build/web-mobile/ ${{ secrets.SFTP_REMOTE_PATH }}; quit"
