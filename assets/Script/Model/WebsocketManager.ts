@@ -1,10 +1,11 @@
 import { error, log } from "cc";
-import { Client, ClientCmd, ClientCmdMap } from "./WebsocketModel";
+import { ClientOp, ClientOpMap } from "./WebsocketModel";
 import { ServerCmd, ServerCmdMap } from "./WebsocketModel";
 import { BaseModel } from "../../Base/BaseModel";
 
-export { ClientCmd, ServerCmd, type Client, type ClientCmdMap, type ServerCmdMap } from "./WebsocketModel";
+export { ClientOp, ServerCmd, type ClientOpMap, type ServerCmdMap } from "./WebsocketModel";
 export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMap> {
+    /** ws 欄位。 */
     private ws: WebSocket = null;
     private static instance: WebsocketManager = null;
     public static getInstance() {
@@ -15,6 +16,12 @@ export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMa
         }
     }
 
+    /**
+     * constructor。
+     * @param url url
+     * @param open open
+     * @param close close
+     */
     public constructor(url: string, open: Function, close: Function) {
         super();
         WebsocketManager.instance = this;
@@ -27,11 +34,9 @@ export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMa
 
         this.ws.onmessage = (event: MessageEvent) => {
             const msg = JSON.parse(event.data);
-            const cmd: ServerCmd = msg.cmd;
-            if (cmd in ServerCmd) {
-                this.eventTarget.emit(cmd, msg.data);
-            } else {
-                error(`[WebSocket] 未知狀態: ${cmd}`);
+            log('[WebSocket] 收到', msg);
+            if (msg.type) {
+                this.eventTarget.emit(msg.type, msg.data);
             }
         };
 
@@ -50,8 +55,7 @@ export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMa
     }
 
     /** 發送指令到伺服器 */
-    public send<T extends ClientCmd>(cmd: T, data: ClientCmdMap[T]) {
-        const msg: Client<T> = { cmd, data };
-        this.ws.send(JSON.stringify(msg));
+    public send<T extends ClientOp>(op: T, data: ClientOpMap[T]) {
+        this.ws.send(JSON.stringify({ op, data }));
     }
 }

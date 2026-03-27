@@ -125,9 +125,9 @@ export namespace BaseModel {
             this.eventTarget.on(cmd, callback, target);
         }
 
-        /** 取消監聯伺服器指令事件 */
-        public off<T extends Model>(cmd: T) {
-            this.eventTarget.off(cmd);
+        /** 取消監聽伺服器指令事件 */
+        public off<T extends Model>(cmd: T, callback?: (data: Map[T]) => void, target?: any) {
+            this.eventTarget.off(cmd, callback, target);
         }
 
         /** 監聽伺服器指令事件 */
@@ -136,4 +136,3 @@ export namespace BaseModel {
         }
     }
 }
-

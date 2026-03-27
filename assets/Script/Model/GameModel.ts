@@ -1,35 +1,102 @@
-import { Bet, BetOK } from "./WebsocketModel";
+import { LobbyList } from "./WebsocketModel";
 
+/** GmaeModel 列舉。 */
 export enum GmaeModel {
-    ID = "ID",
-    Name = "Name",
+    PlayerId = "PlayerId",
     Balance = "Balance",
+    Leaderboard = "Leaderboard",
     BetOptions = "BetOptions",
     MaxBetCount = "MaxBetCount",
     RoundHistory = "RoundHistory",
-    AddRoundHistory = "AddRoundHistory",
-    BettingStart = "BettingStart",
     BettingCountdown = "BettingCountdown",
-    RoundCountdown = "RoundCountdown",
     Multiplier = "Multiplier",
+    RunningElapsed = "RunningElapsed",
+    MultiplierCurve = "MultiplierCurve",
     Explode = "Explode",
-    Bet = "Bet",
-    BetOK = "BetOK",
+    CrashedCountdown = "CrashedCountdown",
+    Settled = "Settled",
+    CrashBet = "crash.bet",
+    Cashout = "Cashout",
+    ExistingBets = "ExistingBets",
+    Lobbies = "Lobbies",
 };
 
+/** ExistingBetStatus 型別定義。 */
+export type ExistingBetStatus =
+    | 'WalletPending'
+    | 'Pending'
+    | 'CashoutPending'
+    | 'CashedOut'
+    | 'Lost'
+    | string;
+
+/** ExistingBet 型別定義。 */
+export type ExistingBet = {
+    betId?: string;
+    betIndex: number;
+    betAmount: number;
+    status?: ExistingBetStatus;
+    autoCashoutMultiplier?: number | null;
+    cashoutMultiplier?: number | null;
+    payoutGross?: number | null;
+    serviceFee?: number | null;
+    payoutNet?: number | null;
+    currentProfit?: number | null;
+    cashoutAtUtc?: string | null;
+};
+
+/** LeaderboardItem 型別定義。 */
+export type LeaderboardItem = {
+    playerId: string;
+    totalBet: number;
+    profit: number;
+    cashoutMultiplier?: number | null;
+    rank: number;
+    betStatuses: number[];
+};
+
+/** CrashBetPayload 型別定義。 */
+export type CrashBetPayload = {
+    betId?: string;
+    betIndex: number;
+    betAmount: number;
+    autoCashoutMultiplier: number | null;
+    balanceUnits?: number | string;
+};
+
+/** CashoutPayload 型別定義。 */
+export type CashoutPayload = {
+    betIndex: number;
+    cashoutMultiplier: number;
+    payoutGross: number;
+    serviceFee: number;
+    payoutNet: number;
+    balanceUnits?: number | string;
+};
+
+/** MultiplierCurvePoint 型別定義。 */
+export type MultiplierCurvePoint = {
+    t: number;
+    m: number;
+};
+
+/** GmaeModelMap 型別定義。 */
 export type GmaeModelMap = {
-    [GmaeModel.ID]: string;
-    [GmaeModel.Name]: string;
+    [GmaeModel.PlayerId]: string;
     [GmaeModel.Balance]: number;
+    [GmaeModel.Leaderboard]: LeaderboardItem[];
     [GmaeModel.BetOptions]: number[];
     [GmaeModel.MaxBetCount]: number;
     [GmaeModel.RoundHistory]: number[];
-    [GmaeModel.AddRoundHistory]: number;
-    [GmaeModel.BettingStart]: number;
     [GmaeModel.BettingCountdown]: number;
-    [GmaeModel.RoundCountdown]: number;
     [GmaeModel.Multiplier]: number;
+    [GmaeModel.RunningElapsed]: number;
+    [GmaeModel.MultiplierCurve]: MultiplierCurvePoint[];
     [GmaeModel.Explode]: number;
-    [GmaeModel.Bet]: Bet;
-    [GmaeModel.BetOK]: BetOK;
+    [GmaeModel.CrashedCountdown]: number;
+    [GmaeModel.Settled]: void;
+    [GmaeModel.CrashBet]: CrashBetPayload;
+    [GmaeModel.Cashout]: CashoutPayload;
+    [GmaeModel.ExistingBets]: ExistingBet[];
+    [GmaeModel.Lobbies]: LobbyList;
 }
