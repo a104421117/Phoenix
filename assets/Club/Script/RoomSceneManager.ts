@@ -50,9 +50,6 @@ export class RoomSceneManager extends Component {
             const gameData = GameData.getInstance();
             gameData.RoomId = data.roomId;
             gameData.PlayerId = data.playerId;
-            if (data.balance) {
-                gameData.Balance = parseFloat(data.balance.balanceUnits);
-            }
             // Phoenix.md 最新接口以 gameState 為主；保留 gameInit 相容
             const init = data.gameState ?? data.gameInit;
             if (init) {
@@ -64,9 +61,33 @@ export class RoomSceneManager extends Component {
                 gameData.setExistingBets([]);
                 gameData.setMultiplierCurve([]);
             }
-            if (data.roundHistory) {
-                const items = data.roundHistory.items ?? data.roundHistory.history ?? [];
-                gameData.RoundHistory = items.map(r => r.crashPoint);
+
+            /** 新版：balance 在 gameState/gameInit 內層；舊版：在 room.join 外層 */
+            const balance = init?.balance ?? data.balance;
+            if (balance) {
+                const value = Number(balance.balanceUnits);
+                if (Number.isFinite(value)) {
+                    gameData.Balance = value;
+                }
+            }
+
+            /** 新版：roundHistory 在 gameState/gameInit 內層；舊版：在 room.join 外層 */
+            if (Array.isArray(init?.roundHistory)) {
+                gameData.RoundHistory = init.roundHistory
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isFinite(item));
+            } else if (data.roundHistory) {
+                const history = Array.isArray(data.roundHistory.history) ? data.roundHistory.history : [];
+                if (history.every((item) => Number.isFinite(Number(item)))) {
+                    gameData.RoundHistory = history
+                        .map((item) => Number(item))
+                        .filter((item) => Number.isFinite(item));
+                } else {
+                    const items = data.roundHistory.items ?? history;
+                    gameData.RoundHistory = (items as any[])
+                        .map((item) => Number(item?.crashPoint))
+                        .filter((item) => Number.isFinite(item));
+                }
             } else {
                 gameData.RoundHistory = [];
             }

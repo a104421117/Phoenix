@@ -1,4 +1,5 @@
 import { _decorator, Component, director, Label, Button, ProgressBar } from 'cc';
+import { BUILD } from 'cc/env';
 import { WebsocketManager } from '../../Script/Model/WebsocketManager';
 const { ccclass, property } = _decorator;
 
@@ -48,13 +49,28 @@ export class LoadSceneManager extends Component {
         }
     }
 
+    @property({ tooltip: '開發用 token（正式環境由前台傳入）' })
+    private devToken: string = 'phoenix-test-e15bcb2770924204b8fc643b99af560d';
+
+    @property({ tooltip: '本地備用 WS URL（URL 參數 wsUrl 優先）' })
+    private fallbackWsUrl: string = 'ws://100.124.132.68:20001/connect';
+
     private connectWebSocket() {
+        let wsUrl: string;
+        if (BUILD) {
+            const config = (window as any).GAME_CONFIG ?? {};
+            wsUrl = new URLSearchParams(window.location.search).get('wsUrl')
+                 ?? config.wsUrl
+                 ?? this.fallbackWsUrl;
+        } else {
+            wsUrl = this.fallbackWsUrl;
+        }
         new WebsocketManager(
-            "ws://100.124.132.68:20001/connect?token=phoenix-test-e15bcb2770924204b8fc643b99af560d",
+            `${wsUrl}?token=${this.devToken}`,
             () => {
                 this.startBtn.node.active = true;
             },
-            (event: CloseEvent) => { }
+            (_event: CloseEvent) => { }
         );
     }
 

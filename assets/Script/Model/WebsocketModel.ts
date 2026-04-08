@@ -13,11 +13,11 @@ export enum ClientOp {
 /** 客戶端操作指令 → 資料型別映射 */
 export type ClientOpMap = {
     [ClientOp.LobbyList]: { gameCode: string; currency?: string };
-    [ClientOp.RoomList]: { lobbyId: string; status?: string; limit?: number };
+    [ClientOp.RoomList]: { lobbyId?: string; status?: string; limit?: number };
     [ClientOp.RoomJoin]: { roomId: string };
     [ClientOp.GameInit]: { roomId: string };
-    [ClientOp.GameBalance]: { roomId: string };
-    [ClientOp.GameAction]: { roomId: string; method: string; payload: object };
+    [ClientOp.GameBalance]: { instanceId: string };
+    [ClientOp.GameAction]: { instanceId: string; method: string; payload: object };
 }
 
 /** ─── Game Data Types ───────────────────────────────────────── */
@@ -90,10 +90,13 @@ export type ServerCmdMap = {
 
 /** RoundHistoryData 型別定義。 */
 export type RoundHistoryData = {
-    /** 舊版欄位 */
-    history?: { roundId: string; crashPoint: number; crashedAt: string | null }[];
-    /** 新版欄位 */
+    /** 新版欄位（目前主格式） */
+    history?: number[] | { roundId: string; crashPoint: number; crashedAt: string | null }[];
+    /** 舊版欄位（保留相容） */
     items?: { roundId: string; crashPoint: number; crashedAt: string | null }[];
+    distribution?: { range: string; count: number }[];
+    historyMaxCrashPoint?: number | null;
+    todayMaxCrashPoint?: number | null;
 }
 
 /** GameInitData 型別定義。 */
@@ -102,6 +105,7 @@ export type GameInitData = {
     minBet: number;
     maxBet: number;
     betLimitSource?: string;
+    crashDistribution?: string;
     decimalPlaces?: number;
     leaderboardLimit?: number;
     maxBetsPerPlayer?: number;
@@ -112,6 +116,10 @@ export type GameInitData = {
     maxMultiplier?: number;
     tickIntervalMs?: number;
     multiplierCurve?: { t: number; m: number }[];
+    /** 新版由 gameState/gameInit 內層帶回 */
+    roundHistory?: number[];
+    /** 新版由 gameState/gameInit 內層帶回 */
+    balance?: GameBalance | null;
 }
 
 /** LobbyList 型別定義。 */
@@ -156,11 +164,9 @@ export type RoomJoinResponse = {
     gameState?: GameInitData | null;
     /** 舊版欄位，保留相容 */
     gameInit?: GameInitData | null;
-    balance: {
-        playerId: string;
-        currency: string;
-        balanceUnits: string;
-    } | null;
+    /** 舊版欄位（新版改在 gameState/gameInit 內） */
+    balance?: GameBalance | null;
+    /** 舊版欄位（新版改在 gameState/gameInit 內） */
     roundHistory?: RoundHistoryData | null;
 }
 
@@ -189,7 +195,7 @@ export type GameInit = {
 export type GameBalance = {
     playerId: string;
     currency: string;
-    balanceUnits: string;
+    balanceUnits: string | number;
 }
 
 /** GameAction 型別定義。 */
@@ -202,7 +208,7 @@ export type GameAction = {
 export type LeaderboardEntryBetting = {
     playerId: string;
     totalBet: number;
-    betStatuses: number[];
+    betStatuses?: number[];
     rank: number;
 }
 
@@ -253,7 +259,7 @@ export type RoomRoundStarted = {
     roomId: string;
     roundId: string;
     gameCode: string;
-    roundSeq: number;
+    roundSeq?: number;
     state: 'Betting';
     bettingCountdown: number | null;
 }
@@ -268,7 +274,6 @@ export type RoomBetPlaced = {
     betAmount: number;
     betSeq: number;
     autoCashoutMultiplier: number | null;
-    leaderboard?: LeaderboardEntry[];
 }
 
 /** 兌現成功廣播 */
@@ -277,11 +282,16 @@ export type RoomCashoutDone = {
     roundId: string;
     gameCode: string;
     playerId: string;
-    betIndex: number;
-    cashoutMultiplier: number;
-    payoutGross: number;
-    serviceFee: number;
-    payoutNet: number;
+    cashouts: {
+        betIndex: number;
+        cashoutMultiplier: number;
+        payoutGross: number;
+        serviceFee: number;
+        payoutNet: number;
+        payout?: number;
+    }[];
+    totalPayout?: number;
+    requestId?: string;
 }
 
 /** RoomRoundEnded 型別定義。 */

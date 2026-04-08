@@ -1,6 +1,17 @@
-import { _decorator, Component, Node, EventTarget, log } from 'cc';
+import { log } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
-import { CashoutPayload, CrashBetPayload, ExistingBet, ExistingBetStatus, GmaeModel, GmaeModelMap, LeaderboardItem, MultiplierCurvePoint } from './GameModel';
+import {
+    CashoutBatchPayload,
+    CashoutPayload,
+    CrashBetBatchPayload,
+    CrashBetPayload,
+    ExistingBet,
+    ExistingBetStatus,
+    GmaeModel,
+    GmaeModelMap,
+    LeaderboardItem,
+    MultiplierCurvePoint,
+} from './GameModel';
 import { ClientOp, RoomList } from './WebsocketModel';
 import { WebsocketManager } from './WebsocketManager';
 
@@ -253,47 +264,68 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
         this.eventTarget.emit(GmaeModel.Settled);
     }
 
-    /** crash.bet 回傳成功 */
-    public onCrashBet(payload: CrashBetPayload) {
-        if (typeof payload?.betAmount !== 'number' || typeof payload?.betIndex !== 'number') {
+    /** crash.bet 回傳成功（支援單筆 / 批次 payload.bets） */
+    public onCrashBet(payload: CrashBetPayload | CrashBetBatchPayload | any) {
+        const bets = this.extractCrashBetPayloads(payload);
+        if (bets.length <= 0) {
             return;
         }
         log("crash.bet", payload);
-        this.betIndex = payload.betIndex + 1;
-        this.upsertExistingBet({
-            betId: payload.betId,
-            betIndex: payload.betIndex,
-            betAmount: payload.betAmount,
-            status: 'Pending',
-            autoCashoutMultiplier: payload.autoCashoutMultiplier,
+        bets.forEach((bet) => {
+            this.betIndex = Math.max(this.betIndex, bet.betIndex + 1);
+            this.upsertExistingBet({
+                betId: bet.betId,
+                betIndex: bet.betIndex,
+                betAmount: bet.betAmount,
+                status: 'Pending',
+                autoCashoutMultiplier: bet.autoCashoutMultiplier ?? null,
+            });
+            this.eventTarget.emit(GmaeModel.CrashBet, bet);
         });
-        this.syncBalanceUnits(payload.balanceUnits);
-        this.eventTarget.emit(GmaeModel.CrashBet, payload);
+        this.syncBalanceUnits(payload?.balanceUnits);
     }
 
-    /** crash.cashout 回傳成功 */
-    public onCashout(payload: CashoutPayload) {
+    /** crash.cashout 回傳成功（支援單筆 / 批次 payload.cashouts） */
+    public onCashout(payload: CashoutPayload | CashoutBatchPayload | any) {
+        const cashouts = this.extractCashoutPayloads(payload);
+        if (cashouts.length <= 0) {
+            return;
+        }
         log("Cashout", payload);
-        this.upsertExistingBet({
-            betIndex: payload.betIndex,
-            betAmount: this.existingBets.find((b) => b.betIndex === payload.betIndex)?.betAmount ?? 0,
-            status: 'CashedOut',
-            cashoutMultiplier: payload.cashoutMultiplier,
-            payoutGross: payload.payoutGross,
-            serviceFee: payload.serviceFee,
-            payoutNet: payload.payoutNet,
+        cashouts.forEach((cashout) => {
+            this.upsertExistingBet({
+                betIndex: cashout.betIndex,
+                betAmount: this.existingBets.find((b) => b.betIndex === cashout.betIndex)?.betAmount ?? 0,
+                status: 'CashedOut',
+                cashoutMultiplier: cashout.cashoutMultiplier,
+                payoutGross: cashout.payoutGross,
+                serviceFee: cashout.serviceFee,
+                payoutNet: cashout.payoutNet,
+            });
+            this.eventTarget.emit(GmaeModel.Cashout, cashout);
         });
-        this.syncBalanceUnits(payload.balanceUnits);
-        this.eventTarget.emit(GmaeModel.Cashout, payload);
+        this.syncBalanceUnits(payload?.balanceUnits);
     }
 
     /** crash.roundHistory 回傳（最多 100 筆） */
     public onRoundHistory(payload: {
-        history?: { roundId: string; crashPoint: number; crashedAt: string | null }[];
+        history?: number[] | { roundId: string; crashPoint: number; crashedAt: string | null }[];
         items?: { roundId: string; crashPoint: number; crashedAt: string | null }[];
     }) {
-        const raw = Array.isArray(payload?.items) ? payload.items : (Array.isArray(payload?.history) ? payload.history : []);
-        const history = raw.map((item) => item.crashPoint);
+        const rawHistory = payload?.history;
+        if (Array.isArray(rawHistory) && rawHistory.every((item) => Number.isFinite(Number(item)))) {
+            this.RoundHistory = rawHistory
+                .map((item) => Number(item))
+                .filter((item) => Number.isFinite(item));
+            return;
+        }
+
+        const rawItems = Array.isArray(payload?.items)
+            ? payload.items
+            : (Array.isArray(rawHistory) ? rawHistory : []);
+        const history = rawItems
+            .map((item: any) => Number(item?.crashPoint))
+            .filter((item) => Number.isFinite(item));
         this.RoundHistory = history;
     }
 
@@ -308,16 +340,26 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
 
     /** crash.bets 回傳：同步玩家本回合各注狀態 */
     public onCrashBets(payload: any) {
-        const rawBets = Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload?.existingBets)
-                ? payload.existingBets
-                : Array.isArray(payload?.bets)
-                    ? payload.bets
-                    : Array.isArray(payload?.items)
-                        ? payload.items
-                        : [];
-        this.setExistingBets(rawBets);
+        const rawBets = this.extractRawBets(payload);
+        if (this.hasBets(payload)) {
+            this.setExistingBets(rawBets);
+        }
+        this.onCashout(payload);
+        this.syncBalanceUnits(payload?.balanceUnits);
+    }
+
+    /** crash.state 回傳：依 state(enum) 同步前端狀態 */
+    public onCrashState(payload: any) {
+        this.applyRoundStateByEnum(payload);
+    }
+
+    /** crash.reconnect 回傳：同步狀態 + 注單 + 已兌現資料 */
+    public onReconnect(payload: any) {
+        this.applyRoundStateByEnum(payload);
+        if (this.hasBets(payload)) {
+            this.setExistingBets(this.extractRawBets(payload));
+        }
+        this.onCashout(payload);
         this.syncBalanceUnits(payload?.balanceUnits);
     }
 
@@ -348,18 +390,26 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
         if (this.betIndex >= this.betOptions.length) return;
         const betUnits = this.betOptions[this.betIndex];
         WebsocketManager.getInstance().send(ClientOp.GameAction, {
-            roomId: this.roomId,
+            instanceId: this.roomId,
             method: 'crash.bet',
-            payload: { betUnits, autoCashoutMultiplier: null, betIndex: this.betIndex },
+            payload: {
+                bets: [
+                    {
+                        betUnits,
+                        autoCashoutMultiplier: null,
+                        betIndex: this.betIndex,
+                    },
+                ],
+            },
         });
     }
 
     /** 發送兌現 */
     public sendCashout(betIndex: number) {
         WebsocketManager.getInstance().send(ClientOp.GameAction, {
-            roomId: this.roomId,
+            instanceId: this.roomId,
             method: 'crash.cashout',
-            payload: { betIndex },
+            payload: { betIndexes: [betIndex] },
         });
     }
 
@@ -367,9 +417,27 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     public sendRoundHistory() {
         if (!this.roomId) return;
         WebsocketManager.getInstance().send(ClientOp.GameAction, {
-            roomId: this.roomId,
+            instanceId: this.roomId,
             method: 'crash.roundHistory',
             payload: {},
+        });
+    }
+
+    /** reconnect：同步目前回合狀態與注單 */
+    public sendReconnect() {
+        if (!this.roomId) return;
+        WebsocketManager.getInstance().send(ClientOp.GameAction, {
+            instanceId: this.roomId,
+            method: 'crash.reconnect',
+            payload: {},
+        });
+    }
+
+    /** 主動刷新餘額 */
+    public sendGameBalance() {
+        if (!this.roomId) return;
+        WebsocketManager.getInstance().send(ClientOp.GameBalance, {
+            instanceId: this.roomId,
         });
     }
 
@@ -377,10 +445,160 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
     public sendCrashBets() {
         if (!this.roomId) return;
         WebsocketManager.getInstance().send(ClientOp.GameAction, {
-            roomId: this.roomId,
+            instanceId: this.roomId,
             method: 'crash.bets',
             payload: {},
         });
+    }
+
+    /**
+     * extractRawBets。
+     * @param payload payload
+     * @returns extractRawBets 回傳值
+     */
+    private extractRawBets(payload: any): any[] {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.existingBets)) return payload.existingBets;
+        if (Array.isArray(payload?.bets)) return payload.bets;
+        if (Array.isArray(payload?.items)) return payload.items;
+        return [];
+    }
+
+    /**
+     * hasBets。
+     * @param payload payload
+     * @returns hasBets 回傳值
+     */
+    private hasBets(payload: any): boolean {
+        return Array.isArray(payload)
+            || Array.isArray(payload?.existingBets)
+            || Array.isArray(payload?.bets)
+            || Array.isArray(payload?.items);
+    }
+
+    /**
+     * extractCrashBetPayloads。
+     * @param payload payload
+     * @returns extractCrashBetPayloads 回傳值
+     */
+    private extractCrashBetPayloads(payload: any): CrashBetPayload[] {
+        const rawBets = Array.isArray(payload?.bets)
+            ? payload.bets
+            : (Array.isArray(payload) ? payload : [payload]);
+
+        return rawBets
+            .map((raw) => this.normalizeCrashBetPayload(raw))
+            .filter((item): item is CrashBetPayload => item !== null);
+    }
+
+    /**
+     * extractCashoutPayloads。
+     * @param payload payload
+     * @returns extractCashoutPayloads 回傳值
+     */
+    private extractCashoutPayloads(payload: any): CashoutPayload[] {
+        const rawCashouts = Array.isArray(payload?.cashouts)
+            ? payload.cashouts
+            : (Array.isArray(payload) ? payload : [payload]);
+
+        return rawCashouts
+            .map((raw) => this.normalizeCashoutPayload(raw))
+            .filter((item): item is CashoutPayload => item !== null);
+    }
+
+    /**
+     * normalizeCrashBetPayload。
+     * @param raw raw
+     * @returns normalizeCrashBetPayload 回傳值
+     */
+    private normalizeCrashBetPayload(raw: any): CrashBetPayload | null {
+        const betIndex = Number(raw?.betIndex);
+        const betAmount = Number(raw?.betAmount ?? raw?.betUnits);
+        if (!Number.isInteger(betIndex) || !Number.isFinite(betAmount)) {
+            return null;
+        }
+
+        const autoCashoutMultiplier = this.parseNullableNum(raw?.autoCashoutMultiplier);
+        return {
+            betId: typeof raw?.betId === 'string' ? raw.betId : undefined,
+            betIndex,
+            betAmount,
+            autoCashoutMultiplier,
+        };
+    }
+
+    /**
+     * normalizeCashoutPayload。
+     * @param raw raw
+     * @returns normalizeCashoutPayload 回傳值
+     */
+    private normalizeCashoutPayload(raw: any): CashoutPayload | null {
+        const betIndex = Number(raw?.betIndex);
+        const cashoutMultiplier = Number(raw?.cashoutMultiplier);
+        const payoutGross = Number(raw?.payoutGross);
+        const serviceFee = Number(raw?.serviceFee);
+        const payoutNet = Number(raw?.payoutNet);
+        if (
+            !Number.isInteger(betIndex)
+            || !Number.isFinite(cashoutMultiplier)
+            || !Number.isFinite(payoutGross)
+            || !Number.isFinite(serviceFee)
+            || !Number.isFinite(payoutNet)
+        ) {
+            return null;
+        }
+
+        const payout = this.parseNullableNum(raw?.payout);
+        return {
+            betIndex,
+            cashoutMultiplier,
+            payoutGross,
+            serviceFee,
+            payoutNet,
+            payout: payout ?? undefined,
+        };
+    }
+
+    /**
+     * applyRoundStateByEnum。
+     * @param payload payload
+     */
+    private applyRoundStateByEnum(payload: any) {
+        const state = Number(payload?.state);
+        if (!Number.isInteger(state)) {
+            return;
+        }
+
+        switch (state) {
+            case 0: {
+                const bettingCountdown = Number(payload?.bettingCountdown);
+                this.onBetting(Number.isFinite(bettingCountdown) ? bettingCountdown : 0);
+                break;
+            }
+            case 1: {
+                const multiplier = Number(payload?.currentMultiplier);
+                const runningElapsed = Number(payload?.runningElapsed);
+                this.onRunning(
+                    Number.isFinite(multiplier) ? multiplier : 1,
+                    Number.isFinite(runningElapsed) ? runningElapsed : undefined,
+                );
+                break;
+            }
+            case 2: {
+                const crashPoint = Number(payload?.crashPoint ?? payload?.currentMultiplier);
+                const crashedCountdown = Number(payload?.crashedCountdown);
+                const runningElapsed = Number(payload?.runningElapsed);
+                this.onCrashed(
+                    Number.isFinite(crashPoint) ? crashPoint : 1,
+                    Number.isFinite(crashedCountdown) ? crashedCountdown : 0,
+                    Number.isFinite(runningElapsed) ? runningElapsed : undefined,
+                );
+                break;
+            }
+            case 3:
+                this.onSettled();
+                break;
+        }
     }
 
     /** 從 WS 的 balanceUnits 同步餘額（支援 number / string） */
@@ -389,6 +607,17 @@ export class GameData extends BaseModel.GameEvent<GmaeModel, GmaeModelMap> {
         const nextBalance = typeof balanceUnits === 'number' ? balanceUnits : parseFloat(balanceUnits);
         if (!Number.isFinite(nextBalance)) return;
         this.Balance = nextBalance;
+    }
+
+    /**
+     * parseNullableNum。
+     * @param value value
+     * @returns parseNullableNum 回傳值
+     */
+    private parseNullableNum(value: any): number | null {
+        if (value === null || value === undefined) return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
     }
 
     /**

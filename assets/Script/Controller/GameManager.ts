@@ -2,7 +2,7 @@ import { _decorator, Component, log, warn } from 'cc';
 import { BaseModel } from '../../Base/BaseModel';
 import { GameData } from '../Model/GameData';
 import { WebsocketManager, ClientOp, ServerCmd } from '../Model/WebsocketManager';
-import { GameAction, GameInit, RoomRoundEnded, RoomRoundState } from '../Model/WebsocketModel';
+import { GameAction, GameBalance, GameInit, RoomRoundEnded, RoomRoundState } from '../Model/WebsocketModel';
 
 const { ccclass, property } = _decorator;
 
@@ -64,6 +64,25 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
             gameData.MaxBetCount = init.maxBetsPerPlayer ?? init.betOptions?.length ?? 0;
             gameData.setExistingBets(init.existingBets);
             gameData.setMultiplierCurve(init.multiplierCurve);
+            if (init.balance) {
+                const balance = Number(init.balance.balanceUnits);
+                if (Number.isFinite(balance)) {
+                    gameData.Balance = balance;
+                }
+            }
+            if (Array.isArray(init.roundHistory)) {
+                gameData.RoundHistory = init.roundHistory
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isFinite(item));
+            }
+        });
+
+        /** game.balance 回傳 */
+        ws.on(ServerCmd.GameBalance, (data: GameBalance) => {
+            const balance = Number(data?.balanceUnits);
+            if (Number.isFinite(balance)) {
+                gameData.Balance = balance;
+            }
         });
 
         /** game.action 回傳（crash.bet / crash.cashout） */
@@ -75,6 +94,12 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
                     break;
                 case 'crash.cashout':
                     gameData.onCashout(data.payload ?? data);
+                    break;
+                case 'crash.state':
+                    gameData.onCrashState(data.payload ?? data);
+                    break;
+                case 'crash.reconnect':
+                    gameData.onReconnect(data.payload ?? data);
                     break;
                 case 'crash.roundHistory':
                     gameData.onRoundHistory(data.payload ?? data);
@@ -92,7 +117,7 @@ export class GameManager extends BaseModel.Singleton<GameManager> {
 
         if (gameData.RoomId) {
             gameData.sendRoundHistory();
-            gameData.sendCrashBets();
+            gameData.sendReconnect();
         }
     }
 

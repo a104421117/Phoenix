@@ -62,7 +62,7 @@ export class GameStateView extends Component {
     start() {
         const gameData = GameData.getInstance();
         gameData.on(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
-        /** gameData.on(GmaeModel.ExistingBets, this.onExistingBets, this); */
+        gameData.on(GmaeModel.ExistingBets, this.onExistingBets, this);
         gameData.on(GmaeModel.BettingCountdown, this.onBetting, this);
         gameData.on(GmaeModel.CrashBet, this.onCrashBet, this);
         gameData.on(GmaeModel.Multiplier, this.onRunning, this);
@@ -77,7 +77,7 @@ export class GameStateView extends Component {
 
         /** 進場時同步目前已載入的 maxBetsPerPlayer（通常在 room.join 後已有值） */
         this.onMaxBetCount(gameData.MaxBetCount);
-        /** this.onExistingBets(gameData.ExistingBets); */
+        this.onExistingBets(gameData.ExistingBets);
     }
 
     /** onDestroy。 */

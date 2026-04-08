@@ -60,8 +60,8 @@ export type CrashBetPayload = {
     betId?: string;
     betIndex: number;
     betAmount: number;
-    autoCashoutMultiplier: number | null;
-    balanceUnits?: number | string;
+    autoCashoutMultiplier?: number | null;
+    balanceUnits?: number | string | null;
 };
 
 /** CashoutPayload 型別定義。 */
@@ -71,7 +71,21 @@ export type CashoutPayload = {
     payoutGross: number;
     serviceFee: number;
     payoutNet: number;
-    balanceUnits?: number | string;
+    payout?: number;
+    balanceUnits?: number | string | null;
+};
+
+/** crash.bet 批次回應（payload） */
+export type CrashBetBatchPayload = {
+    bets?: CrashBetPayload[];
+    balanceUnits?: number | string | null;
+};
+
+/** crash.cashout 批次回應（payload） */
+export type CashoutBatchPayload = {
+    cashouts?: CashoutPayload[];
+    totalPayout?: number;
+    balanceUnits?: number | string | null;
 };
 
 /** MultiplierCurvePoint 型別定義。 */

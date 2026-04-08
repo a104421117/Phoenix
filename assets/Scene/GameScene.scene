@@ -1741,7 +1741,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "BetNumericStepper",
+    "_name": "GameManager",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_parent": {
@@ -19329,6 +19329,12 @@
     "cameraRiseDelay": 1,
     "cameraRiseSpeed": 20,
     "cameraMaxY": 0,
+    "resetOnRoundStart": true,
+    "cameraReturnDurationMs": 333,
+    "cameraReturnEasing": 2,
+    "useServerElapsedForCameraRise": true,
+    "runningElapsedScale": 0.001,
+    "predictElapsedBetweenServerTicks": true,
     "_id": "58MlSxMLZPt7W90LNU1zMU"
   },
   {

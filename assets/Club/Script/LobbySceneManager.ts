@@ -13,11 +13,18 @@ export class LobbySceneManager extends Component {
     private lobbyLayout: Node = null;
 
     private pool: LobbyObj[] = [];
+    /** lobby.list 未回應或無可選 lobby 時，改走 room.list 直連流程。 */
+    private readonly roomListFallbackDelaySec: number = 1.2;
 
     start() {
         const ws = WebsocketManager.getInstance();
         ws.on(ServerCmd.LobbyList, this.onLobbyList, this);
         ws.send(ClientOp.LobbyList, { gameCode: "phoenix", currency: "TWD" });
+        this.scheduleOnce(this.requestRoomListFallback, this.roomListFallbackDelaySec);
+    }
+
+    protected onDestroy(): void {
+        this.unschedule(this.requestRoomListFallback);
     }
 
     private getLobbyObj(): LobbyObj {
@@ -39,12 +46,23 @@ export class LobbySceneManager extends Component {
         });
     }
 
+    /** 新版後端可能不回 lobby.list，超時後直接走 room.list。 */
+    private requestRoomListFallback() {
+        const hasLobbyCard = this.pool.some((obj) => obj?.node?.active);
+        if (hasLobbyCard) {
+            return;
+        }
+        const ws = WebsocketManager.getInstance();
+        ws.once(ServerCmd.RoomList, this.onRoomList, this);
+        ws.send(ClientOp.RoomList, { status: "open", limit: 50 });
+    }
+
     private onJoinLobby(lobbyId: string) {
         log("JoinLobby", lobbyId);
         GameData.getInstance().LobbyId = lobbyId;
         const ws = WebsocketManager.getInstance();
         ws.once(ServerCmd.RoomList, this.onRoomList, this);
-        ws.send(ClientOp.RoomList, { lobbyId, status: "open", limit: 50 });
+        ws.send(ClientOp.RoomList, { status: "open", limit: 50 });
     }
 
     private onRoomList(data: RoomList) {
