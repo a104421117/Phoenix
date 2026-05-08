@@ -1,6 +1,7 @@
-import { _decorator, Camera, Component, Tween, TweenEasing, Vec3, sp, tween, warn } from 'cc';
-import { GameData, GmaeModel } from '../Model/GameData';
-import type { MultiplierCurvePoint } from '../Model/GameModel';
+import { _decorator, Component, Tween, TweenEasing, Vec3, sp, tween, warn } from 'cc';
+import { GameData } from '../Model/GameData';
+import { GmaeModel, type MultiplierCurvePoint } from '../Model/GameModel';
+import { EventManager } from '../Model/EventManager';
 import { CrashCurveGraphView } from './CrashCurveGraphView';
 const { ccclass, property } = _decorator;
 
@@ -13,9 +14,6 @@ enum PhoenixPhase {
 
 @ccclass('PhoenixController')
 export class PhoenixController extends Component {
-    /** 舊版單一 Spine（未指定蛋/鳳凰時做 fallback）。 */
-    @property({ type: sp.Skeleton, tooltip: '舊版單一 Spine（未指定蛋/鳳凰時做 fallback）' })
-    private spine: sp.Skeleton = null;
 
     /** 蛋 Spine（Betting/Crash 使用）。 */
     @property({ type: sp.Skeleton, tooltip: '蛋 Spine（Betting/Crash 使用）' })
@@ -26,31 +24,25 @@ export class PhoenixController extends Component {
     private phoenixSpine: sp.Skeleton = null;
 
     /** 蛋待機動畫（Betting，loop）。 */
-    @property({ tooltip: '蛋待機動畫（Betting，loop）' })
     private eggIdleAnimationName: string = 'idle';
 
     /** 鳳凰起飛動畫（Running 進入瞬間，播放一次）。 */
-    @property({ tooltip: '鳳凰起飛動畫（Running 進入瞬間，播放一次）' })
     private startAnimationName: string = 'start';
 
     /** 鳳凰飛行動畫名稱（Running，loop）。 */
-    @property({ tooltip: '鳳凰飛行動畫名稱（Running，loop）' })
     private flyAnimationName: string = 'fly';
 
-    /** 飛行動畫 Track Index。 */
-    @property({ tooltip: '飛行動畫 Track Index' })
-    private flyTrackIndex: number = 0;
+    /** 飛行動畫 Track Index（不暴露到 Scene，如需調整直接改此值）。 */
+    private static readonly FLY_TRACK_INDEX: number = 0;
 
     /** 進入 Flying 時是否重播 fly 動畫。 */
     @property({ tooltip: '進入 Flying 時是否重播 fly 動畫' })
     private restartFlyOnEnter: boolean = false;
 
     /** 蛋死亡動畫（Crash，播放一次；若留空會 fallback crashAnimationName）。 */
-    @property({ tooltip: '蛋死亡動畫（Crash，播放一次；若留空會 fallback crashAnimationName）' })
     private eggDieAnimationName: string = 'die';
 
     /** （舊欄位）墜毀動畫名稱，僅在 eggDieAnimationName 留空時使用。 */
-    @property({ tooltip: '（舊欄位）墜毀動畫名稱，僅在 eggDieAnimationName 留空時使用' })
     private crashAnimationName: string = '';
 
     /** 墜毀動畫 Track Index。 */
@@ -90,7 +82,7 @@ export class PhoenixController extends Component {
     private horizontalDrift: number = 0;
 
     /** 角度平滑係數（0~1）。 */
-    @property({ tooltip: '角度平滑係數（0~1）' })
+    @property({ tooltip: '角度平滑係數（0~1）', range: [0, 1, 0.01], slide: true })
     private rotationLerp: number = 0.15;
 
     /** 角度計算時的基礎水平速度（避免 vx=0 過度抬頭）。 */
@@ -109,18 +101,6 @@ export class PhoenixController extends Component {
     @property({ type: CrashCurveGraphView, tooltip: 'UI 曲線圖元件（請在 Inspector 指定，不依賴命名）' })
     private curveGraphView: CrashCurveGraphView = null;
 
-    /** 渲染曲線圖的 UI Camera（可選，跨相機對齊用）。 */
-    @property({ type: Camera, tooltip: '渲染曲線圖的 UI Camera（可選，跨相機對齊用）' })
-    private uiCamera: Camera = null;
-
-    /** 渲染鳳凰的 Main Camera（可選，跨相機對齊用）。 */
-    @property({ type: Camera, tooltip: '渲染鳳凰的 Main Camera（可選，跨相機對齊用）' })
-    private mainCamera: Camera = null;
-
-    /** 是否啟用 UI Camera -> Main Camera 的跨相機座標對齊。 */
-    @property({ tooltip: '是否啟用 UI Camera -> Main Camera 的跨相機座標對齊' })
-    private useCrossCameraMapping: boolean = true;
-
     /** 飛行時是否沿 UI 曲線圖移動（位置對齊 crash 曲線）。 */
     @property({ tooltip: '飛行時是否沿 UI 曲線圖移動（位置對齊 crash 曲線）' })
     private followGraphPosition: boolean = true;
@@ -137,6 +117,10 @@ export class PhoenixController extends Component {
     @property({ type: Vec3, tooltip: '沿 UI 曲線取點後的額外偏移（父節點座標）' })
     private graphFollowOffset: Vec3 = new Vec3(0, 0, 0);
 
+    /** 鳳凰相對曲線取樣點的 X 偏移（正值=鳳凰往右、曲線會接近鳳凰尾巴）。 */
+    @property({ tooltip: '鳳凰相對曲線取樣點的 X 偏移（正值=鳳凰往右、曲線會接近鳳凰尾巴）' })
+    private tailAlignOffsetX: number = 0;
+
     /** 跟隨曲線時自動補償鳳凰子節點偏移（Controller 掛在父節點時建議開）。 */
     @property({ tooltip: '跟隨曲線時自動補償鳳凰子節點偏移（Controller 掛在父節點時建議開）' })
     private autoCompensatePhoenixChildOffset: boolean = true;
@@ -144,6 +128,10 @@ export class PhoenixController extends Component {
     /** 是否使用 game.init 的 multiplierCurve 計算飛行角度。 */
     @property({ tooltip: '是否使用 game.init 的 multiplierCurve 計算飛行角度' })
     private useGameInitCurveAngle: boolean = true;
+
+    /** runningElapsed unit scale. Use 0.001 when the server value is milliseconds. */
+    @property({ tooltip: 'runningElapsed unit scale. Use 0.001 when the server value is milliseconds.' })
+    private runningElapsedScale: number = 0.001;
 
     /** 曲線角度最小值（度）。 */
     @property({ tooltip: '曲線角度最小值（度）' })
@@ -194,6 +182,9 @@ export class PhoenixController extends Component {
     private currentSpineComponent: sp.Skeleton = null;
     /** multiplierCurve 欄位。 */
     private multiplierCurve: MultiplierCurvePoint[] = [];
+    private latestRunningElapsedSeconds: number = 0;
+    private hasRunningElapsedSample: boolean = false;
+    private isRoundRunning: boolean = false;
     /** curveSlopeMin 欄位。 */
     private curveSlopeMin: number = 0;
     /** curveSlopeMax 欄位。 */
@@ -201,21 +192,23 @@ export class PhoenixController extends Component {
     /** warnedMissingCurveGraph 欄位。 */
     private warnedMissingCurveGraph: boolean = false;
     private tmpAutoGraphOffset: Vec3 = new Vec3();
+    private tmpSpineWorldPosition: Vec3 = new Vec3();
+    private tmpSpineLocalPosition: Vec3 = new Vec3();
 
     /** start。 */
     start() {
         this.resolveSpine();
         this.resolveCurveGraphView();
-        this.curveGraphView?.releaseFollowTarget(this.node);
         this.defaultScale = this.node.scale.clone();
         this.eggIdlePosition = this.node.position.clone();
         const gameData = GameData.getInstance();
         this.applyMultiplierCurve(gameData.MultiplierCurve);
-        gameData.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        gameData.on(GmaeModel.Multiplier, this.onMultiplier, this);
-        gameData.on(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
-        gameData.on(GmaeModel.Explode, this.onExplode, this);
-        gameData.on(GmaeModel.Settled, this.onSettled, this);
+        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onMultiplier, this);
+        EventManager.getInstance().gameState.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.on(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onExplode, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
 
         this.enterIdle();
     }
@@ -225,6 +218,15 @@ export class PhoenixController extends Component {
         Tween.stopAllByTarget(this.node);
         this.currentSpineAnimation = '';
         this.currentSpineComponent = null;
+    }
+
+    protected onDestroy(): void {
+        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onBetting, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onMultiplier, this);
+        EventManager.getInstance().gameState.off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.off(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onExplode, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onSettled, this);
     }
 
     /**
@@ -242,10 +244,11 @@ export class PhoenixController extends Component {
                     ? this.clamp(graphAngle, -Math.abs(this.maxAngle), Math.abs(this.maxAngle))
                     : graphAngle;
                 this.applySmoothedAngle(this.clampMaxUpAngle(rawTargetAngle));
-                this.previousPosition = this.node.position.clone();
             } else {
                 this.updateFlyingRotation(deltaTime);
             }
+            this.updatePositionByGraph();
+            this.previousPosition = this.node.position.clone();
             return;
         }
 
@@ -265,6 +268,9 @@ export class PhoenixController extends Component {
 
     /** onBetting。 */
     private onBetting() {
+        this.isRoundRunning = false;
+        this.hasRunningElapsedSample = false;
+        this.latestRunningElapsedSeconds = 0;
         if (!this.resetOnBetting) return;
         this.enterIdle();
     }
@@ -276,6 +282,7 @@ export class PhoenixController extends Component {
     private onMultiplier(multiplier: number) {
         if (Number.isFinite(multiplier)) {
             this.latestMultiplier = Math.max(1, multiplier);
+            this.isRoundRunning = true;
         }
 
         if (this.phase === PhoenixPhase.Idle) {
@@ -292,6 +299,15 @@ export class PhoenixController extends Component {
         }
     }
 
+    /** onRunningElapsed。 */
+    private onRunningElapsed(elapsed: number) {
+        if (!Number.isFinite(elapsed)) return;
+
+        this.latestRunningElapsedSeconds = Math.max(0, elapsed * this.runningElapsedScale);
+        this.hasRunningElapsedSample = true;
+        this.isRoundRunning = true;
+    }
+
     /**
      * onMultiplierCurve。
      * @param curve curve
@@ -302,12 +318,16 @@ export class PhoenixController extends Component {
 
     /** onExplode。 */
     private onExplode() {
+        this.isRoundRunning = false;
         if (this.phase === PhoenixPhase.Crashing || this.phase === PhoenixPhase.Idle) return;
         this.startCrashing();
     }
 
     /** onSettled。 */
     private onSettled() {
+        this.isRoundRunning = false;
+        this.hasRunningElapsedSample = false;
+        this.latestRunningElapsedSeconds = 0;
         if (!this.resetOnBetting) return;
         this.enterIdle();
     }
@@ -317,6 +337,9 @@ export class PhoenixController extends Component {
         this.phase = PhoenixPhase.Idle;
         this.latestMultiplier = 1;
         this.flyingElapsed = 0;
+        this.isRoundRunning = false;
+        this.hasRunningElapsedSample = false;
+        this.latestRunningElapsedSeconds = 0;
 
         Tween.stopAllByTarget(this.node);
         this.node.active = true;
@@ -330,6 +353,7 @@ export class PhoenixController extends Component {
         /** New round starts from a deterministic pose to avoid carrying previous round transform. */
         this.resetRoundStartTransform();
         this.phase = PhoenixPhase.Flying;
+        this.isRoundRunning = true;
         this.playStartThenFly(this.restartFlyOnEnter);
         this.flyingElapsed = 0;
 
@@ -344,6 +368,7 @@ export class PhoenixController extends Component {
             } else {
                 this.currentAngle = this.node.angle;
             }
+            this.updatePositionByGraph(false);
             this.previousPosition = this.node.position.clone();
             return;
         }
@@ -359,6 +384,7 @@ export class PhoenixController extends Component {
         this.node.setPosition(this.eggIdlePosition);
         this.node.angle = 0;
         this.currentAngle = 0;
+        this.syncPhoenixSpineStartPosition();
         this.previousPosition = this.node.position.clone();
     }
 
@@ -463,16 +489,41 @@ export class PhoenixController extends Component {
 
     /** resolveSpine。 */
     private resolveSpine() {
-        if (!this.spine) {
-            this.spine = this.node.getComponent(sp.Skeleton) ?? this.node.getComponentInChildren(sp.Skeleton);
+        if (!this.eggSpine && this.phoenixSpine) this.eggSpine = this.phoenixSpine;
+        if (!this.phoenixSpine && this.eggSpine) this.phoenixSpine = this.eggSpine;
+
+        if (!this.eggSpine || !this.phoenixSpine) {
+            const fallback = this.node.getComponent(sp.Skeleton) ?? this.node.getComponentInChildren(sp.Skeleton);
+            if (!this.eggSpine) this.eggSpine = fallback;
+            if (!this.phoenixSpine) this.phoenixSpine = fallback;
         }
-        if (!this.eggSpine) {
-            this.eggSpine = this.spine;
+
+        if (!this.eggSpine || !this.phoenixSpine) {
+            warn('[PhoenixController] Missing eggSpine / phoenixSpine reference.');
         }
-        if (!this.phoenixSpine) {
-            this.phoenixSpine = this.spine;
-        }
+
         this.switchToEggSpine();
+        this.syncPhoenixSpineStartPosition();
+    }
+
+    private syncPhoenixSpineStartPosition() {
+        const eggNode = this.eggSpine?.node;
+        const phoenixNode = this.phoenixSpine?.node;
+        if (!eggNode || !phoenixNode || eggNode === phoenixNode) return;
+
+        if (eggNode.parent === phoenixNode.parent) {
+            phoenixNode.setPosition(eggNode.position);
+            return;
+        }
+
+        eggNode.getWorldPosition(this.tmpSpineWorldPosition);
+        if (phoenixNode.parent) {
+            phoenixNode.parent.inverseTransformPoint(this.tmpSpineLocalPosition, this.tmpSpineWorldPosition);
+            phoenixNode.setPosition(this.tmpSpineLocalPosition);
+            return;
+        }
+
+        phoenixNode.setPosition(this.tmpSpineWorldPosition);
     }
 
     /**
@@ -502,12 +553,12 @@ export class PhoenixController extends Component {
         const key = `${phoenix.node.uuid}:${startName}`;
         if (!forceRestart && this.currentSpineAnimation === key) return;
 
-        phoenix.setAnimation(this.flyTrackIndex, startName, false);
+        phoenix.setAnimation(PhoenixController.FLY_TRACK_INDEX, startName, false);
         this.currentSpineAnimation = key;
         this.currentSpineComponent = phoenix;
 
         if (flyName) {
-            phoenix.addAnimation(this.flyTrackIndex, flyName, true, 0);
+            phoenix.addAnimation(PhoenixController.FLY_TRACK_INDEX, flyName, true, 0);
             this.currentSpineAnimation = `${phoenix.node.uuid}:${flyName}`;
         }
     }
@@ -517,7 +568,7 @@ export class PhoenixController extends Component {
      * @param forceRestart forceRestart
      */
     private playFlyLoop(forceRestart: boolean) {
-        this.playSpineAnimation(this.switchToPhoenixSpine(), this.flyAnimationName, this.flyTrackIndex, true, forceRestart);
+        this.playSpineAnimation(this.switchToPhoenixSpine(), this.flyAnimationName, PhoenixController.FLY_TRACK_INDEX, true, forceRestart);
     }
 
     /**
@@ -579,7 +630,6 @@ export class PhoenixController extends Component {
             phoenixNode.active = target === this.phoenixSpine;
         }
 
-        this.spine = target;
         return target;
     }
 
@@ -588,20 +638,26 @@ export class PhoenixController extends Component {
      * @param preferCurrentProgress preferCurrentProgress
      * @returns updatePositionByGraph 回傳值
      */
-    private updatePositionByGraph(preferCurrentProgress: boolean = true): number | null {
+    private updatePositionByGraph(preferElapsedProgress: boolean = true): number | null {
         if (!this.followGraphPosition) return null;
         this.resolveCurveGraphView();
         if (!this.curveGraphView) return null;
 
-        const sample = preferCurrentProgress
-            ? (this.curveGraphView.sampleByCurrentProgress() ??
-                this.curveGraphView.sampleByMultiplier(this.latestMultiplier))
-            : this.curveGraphView.sampleByMultiplier(this.latestMultiplier);
+        const sample = this.getGraphFollowSample(preferElapsedProgress);
         if (!sample) return null;
 
         const worldPosition = this.mapCurveWorldToPhoenixWorld(sample.worldPosition);
         this.setPositionByWorld(worldPosition);
         return sample.angle;
+    }
+
+    private getGraphFollowSample(preferElapsedProgress: boolean): { worldPosition: Vec3; angle: number } | null {
+        if (preferElapsedProgress && this.hasRunningElapsedSample) {
+            return this.curveGraphView.sampleByElapsed(this.latestRunningElapsedSeconds) ??
+                this.curveGraphView.sampleByMultiplier(this.latestMultiplier);
+        }
+
+        return this.curveGraphView.sampleByMultiplier(this.latestMultiplier);
     }
 
     /** resolveCurveGraphView。 */
@@ -629,11 +685,7 @@ export class PhoenixController extends Component {
      * @returns mapCurveWorldToPhoenixWorld 回傳值
      */
     private mapCurveWorldToPhoenixWorld(curveWorldPosition: Vec3): Vec3 {
-        if (!this.useCrossCameraMapping) return curveWorldPosition;
-        if (!this.uiCamera || !this.mainCamera) return curveWorldPosition;
-
-        const screenPos = this.uiCamera.worldToScreen(curveWorldPosition, new Vec3());
-        return this.mainCamera.screenToWorld(screenPos, new Vec3());
+        return curveWorldPosition;
     }
 
     /**
@@ -652,7 +704,7 @@ export class PhoenixController extends Component {
 
         const autoOffset = this.getAutoGraphFollowOffset();
         this.node.setPosition(
-            local.x + this.graphFollowOffset.x + autoOffset.x,
+            local.x + this.graphFollowOffset.x + autoOffset.x + this.tailAlignOffsetX,
             local.y + this.graphFollowOffset.y + autoOffset.y,
             local.z + this.graphFollowOffset.z + autoOffset.z
         );
@@ -674,9 +726,16 @@ export class PhoenixController extends Component {
             return this.tmpAutoGraphOffset;
         }
 
+        const rad = this.currentAngle * Math.PI / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const x = phoenixNode.position.x;
+        const y = phoenixNode.position.y;
+
+        // Compensate the rotated child offset so the visible phoenix stays on the graph sample.
         this.tmpAutoGraphOffset.set(
-            -phoenixNode.position.x,
-            -phoenixNode.position.y,
+            -(x * cos - y * sin),
+            -(x * sin + y * cos),
             -phoenixNode.position.z
         );
         return this.tmpAutoGraphOffset;

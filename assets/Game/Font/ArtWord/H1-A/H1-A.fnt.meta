@@ -9,9 +9,9 @@
   "subMetas": {},
   "userData": {
     "_fntConfig": {
-      "commonHeight": 130,
-      "fontSize": 130,
-      "atlasName": "H1-A_0.png",
+      "commonHeight": 92,
+      "fontSize": 93,
+      "atlasName": "H1-A.png",
       "fontDefDictionary": {
         "46": {
           "rect": {
@@ -159,7 +159,7 @@
       },
       "kerningDict": {}
     },
-    "fontSize": 130,
+    "fontSize": 93,
     "textureUuid": "8189bef4-f5ba-4ecf-a8b1-fde4cfcb799b"
   }
 }

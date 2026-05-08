@@ -1,67 +1,122 @@
-/** ─── Client → Server ───────────────────────────────────────── */
+/**
+ * WS 接口型別：opcode、請求/回應 payload、以及 contracts re-export。
+ * GameModel.ts 只負責客戶端遊戲事件/狀態；外部 WS 通訊型別都集中在這裡。
+ */
 
-/** 客戶端 → 伺服器 操作指令 */
+import type {
+    CrashBetItemContract,
+    CrashBetPayload,
+} from "../../game-contracts/ts/crash/crashBetPayload";
+import type {
+    CrashCashoutItemContract,
+    CrashCashoutPayload,
+} from "../../game-contracts/ts/crash/crashCashoutPayload";
+import type { CrashRoundStartedPush } from "../../game-contracts/ts/crash/crashRoundStartedPush";
+import type { CrashRoundEndedPush } from "../../game-contracts/ts/crash/crashRoundEndedPush";
+import type {
+    CrashRoundStatePush,
+    CrashLeaderboardItemContract,
+} from "../../game-contracts/ts/crash/crashRoundStatePush";
+import type { CrashBetPlacedPush } from "../../game-contracts/ts/crash/crashBetPlacedPush";
+import type { CrashCashoutDonePush } from "../../game-contracts/ts/crash/crashCashoutDonePush";
+import type {
+    CrashInitPayload,
+    CrashInitBalanceContract,
+    CrashInitExistingBetContract,
+    CrashRoundHistoryContract,
+    CrashHistoryDistributionItemContract,
+} from "../../game-contracts/ts/crash/crashInitPayload";
+import type { CrashStatePayload } from "../../game-contracts/ts/crash/crashStatePayload";
+import type { CrashReconnectPayload } from "../../game-contracts/ts/crash/crashReconnectPayload";
+import type { CrashHistoryPayload } from "../../game-contracts/ts/crash/crashHistoryPayload";
+import type { CrashBetsPayload } from "../../game-contracts/ts/crash/crashBetsPayload";
+
+export type {
+    CrashBetItemContract,
+    CrashBetPayload,
+    CrashCashoutItemContract,
+    CrashCashoutPayload,
+    CrashRoundStartedPush,
+    CrashRoundEndedPush,
+    CrashRoundStatePush,
+    CrashLeaderboardItemContract,
+    CrashBetPlacedPush,
+    CrashCashoutDonePush,
+    CrashInitPayload,
+    CrashInitBalanceContract,
+    CrashInitExistingBetContract,
+    CrashRoundHistoryContract,
+    CrashHistoryDistributionItemContract,
+    CrashStatePayload,
+    CrashReconnectPayload,
+    CrashHistoryPayload,
+    CrashBetsPayload,
+};
+
+/** Client → Server opcodes. */
 export enum ClientOp {
-    LobbyList = 'lobby.list',
     RoomList = 'room.list',
     RoomJoin = 'room.join',
+    RoomLeave = 'room.leave',
     GameInit = 'game.init',
     GameBalance = 'game.balance',
     GameAction = 'game.action',
 }
 
-/** 客戶端操作指令 → 資料型別映射 */
+/** game.action method 名稱（client/server 共用）。 */
+export enum CrashAction {
+    Bet = 'crash.bet',
+    Cashout = 'crash.cashout',
+    State = 'crash.state',
+    Reconnect = 'crash.reconnect',
+    RoundHistory = 'crash.roundHistory',
+    Bets = 'crash.bets',
+}
+
+/** Client → Server: 各 method 對應的 request payload。 */
+export type ClientOpGameActionPayloadMap = {
+    [CrashAction.Bet]: {
+        bets: {
+            betUnits: number;
+            autoCashoutMultiplier: number | null;
+            betIndex: number;
+        }[];
+    };
+    [CrashAction.Cashout]: { betIndexes: number[] };
+    [CrashAction.RoundHistory]: Record<string, never>;
+    [CrashAction.Reconnect]: Record<string, never>;
+    [CrashAction.Bets]: Record<string, never>;
+}
+
+/**
+ * Client → Server: game.action 請求 payload。
+ * 以 `M`（CrashAction enum 成員）映射對應的 payload 形狀；省略時為所有合法 variant 的 discriminated union。
+ */
+export type ClientOpGameAction<
+    M extends keyof ClientOpGameActionPayloadMap = keyof ClientOpGameActionPayloadMap
+> = {
+    [K in M]: {
+        instanceId: string;
+        method: K;
+        payload: ClientOpGameActionPayloadMap[K];
+    };
+}[M];
+
+/** Payload shape per ClientOp（送出端）。 */
 export type ClientOpMap = {
-    [ClientOp.LobbyList]: { gameCode: string; currency?: string };
-    [ClientOp.RoomList]: { lobbyId?: string; status?: string; limit?: number };
+    [ClientOp.RoomList]: { status: string; limit: number };
     [ClientOp.RoomJoin]: { roomId: string };
+    [ClientOp.RoomLeave]: { roomId: string };
     [ClientOp.GameInit]: { roomId: string };
     [ClientOp.GameBalance]: { instanceId: string };
-    [ClientOp.GameAction]: { instanceId: string; method: string; payload: object };
+    [ClientOp.GameAction]: ClientOpGameAction;
 }
 
-/** ─── Game Data Types ───────────────────────────────────────── */
-
-/** Login 型別定義。 */
-export type Login = {
-    id: string;
-    balance: number;
-    betOptions: number[];
-    maxBetCount: number;
-    roundHistory: number[];
-}
-
-/** BettingStart 型別定義。 */
-export type BettingStart = {
-    seconds: number;
-}
-
-/** CrashBetResult 型別定義。 */
-export type CrashBetResult = {
-    betIndex: number;
-    betAmount: number;
-    autoCashoutMultiplier: number | null;
-}
-
-/** Flying 型別定義。 */
-export type Flying = {
-    multiplier: number;
-}
-
-/** Explode 型別定義。 */
-export type Explode = {
-    multiplier: number;
-    seconds: number;
-}
-
-/** ─── Server → Client ───────────────────────────────────────── */
-
-/** 伺服器 → 客戶端 指令 */
-export enum ServerCmd {
-    LobbyList = 'lobby.list',
+/** Server → Client opcodes. */
+export enum ServerOp {
     RoomList = 'room.list',
     RoomJoin = 'room.join',
-    RoomJoined = 'room.joined',
+    RoomLeave = 'room.leave',
     GameInit = 'game.init',
     GameBalance = 'game.balance',
     GameAction = 'game.action',
@@ -72,236 +127,79 @@ export enum ServerCmd {
     RoomRoundEnded = 'room.round.ended',
 }
 
-/** 伺服器指令 → 資料型別映射 */
-export type ServerCmdMap = {
-    [ServerCmd.LobbyList]: LobbyList;
-    [ServerCmd.RoomList]: RoomList;
-    [ServerCmd.RoomJoin]: RoomJoinResponse;
-    [ServerCmd.RoomJoined]: RoomJoined;
-    [ServerCmd.GameInit]: GameInit;
-    [ServerCmd.GameBalance]: GameBalance;
-    [ServerCmd.GameAction]: GameAction;
-    [ServerCmd.RoomRoundState]: RoomRoundState;
-    [ServerCmd.RoomRoundStarted]: RoomRoundStarted;
-    [ServerCmd.RoomBetPlaced]: RoomBetPlaced;
-    [ServerCmd.RoomCashoutDone]: RoomCashoutDone;
-    [ServerCmd.RoomRoundEnded]: RoomRoundEnded;
-}
-
-/** RoundHistoryData 型別定義。 */
-export type RoundHistoryData = {
-    /** 新版欄位（目前主格式） */
-    history?: number[] | { roundId: string; crashPoint: number; crashedAt: string | null }[];
-    /** 舊版欄位（保留相容） */
-    items?: { roundId: string; crashPoint: number; crashedAt: string | null }[];
-    distribution?: { range: string; count: number }[];
-    historyMaxCrashPoint?: number | null;
-    todayMaxCrashPoint?: number | null;
-}
-
-/** GameInitData 型別定義。 */
-export type GameInitData = {
-    currencyCode: string;
-    minBet: number;
-    maxBet: number;
-    betLimitSource?: string;
-    crashDistribution?: string;
-    decimalPlaces?: number;
-    leaderboardLimit?: number;
-    maxBetsPerPlayer?: number;
-    betOptions: number[];
-    existingBets?: any[] | null;
-    totalProfit?: number | null;
-    startMultiplier?: number;
-    maxMultiplier?: number;
-    tickIntervalMs?: number;
-    multiplierCurve?: { t: number; m: number }[];
-    /** 新版由 gameState/gameInit 內層帶回 */
-    roundHistory?: number[];
-    /** 新版由 gameState/gameInit 內層帶回 */
-    balance?: GameBalance | null;
-}
-
-/** LobbyList 型別定義。 */
-export type LobbyList = {
-    lobbies: {
-        lobbyId: string;
-        name: string;
-        gameCode: string;
-        currencyCode: string;
-        minBet: number;
-        maxBet: number;
-        maxPlayers: number;
-        status: string;
-        sortOrder: number;
-    }[];
-}
-
-/** RoomList 型別定義。 */
+/** Room list payload. */
 export type RoomList = {
     rooms: {
         roomId: string;
-        gameType: string;
+        gameCategory: string;
         gameCode: string;
-        /** 舊欄位 */
-        playerCount?: number;
-        /** 新欄位 */
-        playersCount?: number;
+        playerCount: number;
         maxPlayers: number;
         status: string;
     }[];
 }
 
-/** RoomJoinResponse 型別定義。 */
+export type RoomLeaveResponse = {
+    roomId: string;
+    roomClosed: boolean;
+    rooms: RoomList['rooms'];
+}
+
 export type RoomJoinResponse = {
     roomId: string;
     gameCode: string;
     playerId: string;
     sessionId: string;
-    minBet?: number | null;
-    maxBet?: number | null;
-    /** 新版欄位 */
-    gameState?: GameInitData | null;
-    /** 舊版欄位，保留相容 */
-    gameInit?: GameInitData | null;
-    /** 舊版欄位（新版改在 gameState/gameInit 內） */
-    balance?: GameBalance | null;
-    /** 舊版欄位（新版改在 gameState/gameInit 內） */
-    roundHistory?: RoundHistoryData | null;
+    minBet: number | null;
+    maxBet: number | null;
+    gameState: CrashInitPayload | null;
+    balance: CrashInitBalanceContract | null;
+    roundHistory: number[] | null;
 }
 
-/** RoomJoined 型別定義。 */
-export type RoomJoined = {
-    roomId: string;
-    gameCode: string;
-    playerId: string;
-    sessionId: string;
-}
-
-/** GameInit 型別定義。 */
 export type GameInit = {
-    /** 新版欄位 */
-    gameState?: GameInitData;
-    /** 舊版欄位 */
-    gameInit?: GameInitData;
-    roomId?: string;
-    gameCode?: string;
-    sessionId?: string;
-    minBet?: number | null;
-    maxBet?: number | null;
+    gameState: CrashInitPayload;
+    roomId: string;
+    gameCode: string;
+    sessionId: string;
+    minBet: number | null;
+    maxBet: number | null;
 }
 
-/** GameBalance 型別定義。 */
-export type GameBalance = {
-    playerId: string;
-    currency: string;
-    balanceUnits: string | number;
+/** Server → Client: 各 method 對應的 push payload。 */
+export type ServerOpGameActionPayloadMap = {
+    [CrashAction.Bet]: CrashBetPayload;
+    [CrashAction.Cashout]: CrashCashoutPayload;
+    [CrashAction.State]: CrashStatePayload;
+    [CrashAction.Reconnect]: CrashReconnectPayload;
+    [CrashAction.RoundHistory]: CrashHistoryPayload;
+    [CrashAction.Bets]: CrashBetsPayload;
 }
 
-/** GameAction 型別定義。 */
-export type GameAction = {
-    method: string;
-    payload?: any;
-}
-
-/** Betting 階段的 leaderboard（有 totalBet，無 profit / cashoutMultiplier） */
-export type LeaderboardEntryBetting = {
-    playerId: string;
-    totalBet: number;
-    betStatuses?: number[];
-    rank: number;
-}
-
-/** Running / Crashed 階段的 leaderboard（有 profit / cashoutMultiplier，無 totalBet） */
-export type LeaderboardEntryRunning = {
-    playerId: string;
-    profit: number;
-    betStatuses: number[];
-    cashoutMultiplier?: number | null;
-    rank: number;
-}
-
-/** LeaderboardEntry 型別定義。 */
-export type LeaderboardEntry = LeaderboardEntryBetting | LeaderboardEntryRunning;
-
-/** 回合狀態廣播（Betting / Running / Crashed） */
-export type RoomRoundState =
-    | {
-        roomId: string;
-        roundId: string;
-        gameCode: string;
-        state: 'Betting';
-        bettingCountdown: number;
-        leaderboard?: LeaderboardEntryBetting[];
-    }
-    | {
-        roomId: string;
-        roundId: string;
-        gameCode: string;
-        state: 'Running';
-        currentMultiplier: number;
-        runningElapsed?: number;
-        leaderboard?: LeaderboardEntryRunning[];
-    }
-    | {
-        roomId: string;
-        roundId: string;
-        gameCode: string;
-        state: 'Crashed';
-        crashPoint: number;
-        crashedCountdown: number;
-        runningElapsed?: number;
-        leaderboard?: LeaderboardEntryRunning[];
+/**
+ * Server → Client: game.action 推播 payload。
+ * 以 `M`（CrashAction enum 成員）映射對應的 payload 形狀；省略時為所有合法 variant 的 discriminated union。
+ */
+export type ServerOpGameAction<
+    M extends keyof ServerOpGameActionPayloadMap = keyof ServerOpGameActionPayloadMap
+> = {
+    [K in M]: {
+        method: K;
+        payload: ServerOpGameActionPayloadMap[K];
     };
+}[M];
 
-/** RoomRoundStarted 型別定義。 */
-export type RoomRoundStarted = {
-    roomId: string;
-    roundId: string;
-    gameCode: string;
-    roundSeq?: number;
-    state: 'Betting';
-    bettingCountdown: number | null;
-}
-
-/** RoomBetPlaced 型別定義。 */
-export type RoomBetPlaced = {
-    roomId: string;
-    roundId: string;
-    gameCode: string;
-    betId: string;
-    playerId: string;
-    betAmount: number;
-    betSeq: number;
-    autoCashoutMultiplier: number | null;
-}
-
-/** 兌現成功廣播 */
-export type RoomCashoutDone = {
-    roomId: string;
-    roundId: string;
-    gameCode: string;
-    playerId: string;
-    cashouts: {
-        betIndex: number;
-        cashoutMultiplier: number;
-        payoutGross: number;
-        serviceFee: number;
-        payoutNet: number;
-        payout?: number;
-    }[];
-    totalPayout?: number;
-    requestId?: string;
-}
-
-/** RoomRoundEnded 型別定義。 */
-export type RoomRoundEnded = {
-    roomId: string;
-    roundId: string;
-    gameCode: string;
-    kind?: string;
-    roundSeq?: number;
-    state: 'Settled';
-    currentMultiplier: number;
-    crashPoint: number;
+/** Payload shape per ServerOp（接收端）。 */
+export type ServerOpMap = {
+    [ServerOp.RoomList]: RoomList;
+    [ServerOp.RoomJoin]: RoomJoinResponse;
+    [ServerOp.RoomLeave]: RoomLeaveResponse;
+    [ServerOp.GameInit]: GameInit;
+    [ServerOp.GameBalance]: CrashInitBalanceContract;
+    [ServerOp.GameAction]: ServerOpGameAction;
+    [ServerOp.RoomRoundState]: CrashRoundStatePush;
+    [ServerOp.RoomRoundStarted]: CrashRoundStartedPush;
+    [ServerOp.RoomBetPlaced]: CrashBetPlacedPush;
+    [ServerOp.RoomCashoutDone]: CrashCashoutDonePush;
+    [ServerOp.RoomRoundEnded]: CrashRoundEndedPush;
 }

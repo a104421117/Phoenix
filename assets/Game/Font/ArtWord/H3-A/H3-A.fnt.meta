@@ -9,9 +9,9 @@
   "subMetas": {},
   "userData": {
     "_fntConfig": {
-      "commonHeight": 32,
-      "fontSize": 32,
-      "atlasName": "H3-A_0.png",
+      "commonHeight": 23,
+      "fontSize": 23,
+      "atlasName": "H3-A.png",
       "fontDefDictionary": {
         "43": {
           "rect": {
@@ -167,7 +167,7 @@
           "yOffset": 0,
           "xAdvance": 23
         },
-        "101": {
+        "75": {
           "rect": {
             "x": 96,
             "y": 50,
@@ -178,7 +178,7 @@
           "yOffset": 0,
           "xAdvance": 23
         },
-        "119": {
+        "77": {
           "rect": {
             "x": 0,
             "y": 75,
@@ -192,7 +192,7 @@
       },
       "kerningDict": {}
     },
-    "fontSize": 32,
+    "fontSize": 23,
     "textureUuid": "63b8498a-bfb9-4c9e-bc0d-35c3506c60cc"
   }
 }

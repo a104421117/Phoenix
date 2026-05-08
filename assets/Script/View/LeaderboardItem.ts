@@ -1,6 +1,6 @@
 import { _decorator, Component, Label, Node, Prefab, instantiate } from 'cc';
-import { NodeSwitcher } from '../../Base/NodeSwitcher';
-import { BaseModel } from '../../Base/BaseModel';
+import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
+import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import { LeaderboardItem as LeaderboardItemData } from '../Model/GameModel';
 const { ccclass, property } = _decorator;
 
@@ -50,8 +50,12 @@ export class LeaderboardItem extends Component {
     }
 
     /** 更新倍數顯示 */
-    public setMultiplier(multiplier: number) {
-        this.multiplierLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+    public setMultiplier(multiplier: number | null | undefined) {
+        if (typeof multiplier === 'number' && Number.isFinite(multiplier)) {
+            this.multiplierLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+            return;
+        }
+        this.multiplierLabel.string = '';
     }
 
     /** 依 maxBetsPerPlayer 生成 betStatus 物件 */
@@ -78,6 +82,7 @@ export class LeaderboardItem extends Component {
         const profitStr = BaseModel.getFormatNum(item.profit);
         this.profitLabel.string = profitStr;
         this.crashedProfitLabel.string = profitStr;
+        this.setMultiplier(item.cashoutMultiplier);
 
         for (let i = 0; i < this.statusSwitchers.length; i++) {
             const switcher = this.statusSwitchers[i];

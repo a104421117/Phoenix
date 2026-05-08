@@ -1,61 +1,80 @@
-import { error, log } from "cc";
-import { ClientOp, ClientOpMap } from "./WebsocketModel";
-import { ServerCmd, ServerCmdMap } from "./WebsocketModel";
-import { BaseModel } from "../../Base/BaseModel";
+import { error } from 'cc';
+import { BaseModel } from '../../Game.Client.Common/BaseModel';
+import { EventManager } from './EventManager';
+import { GameErrorPrompt, GmaeModel } from './GameModel';
+import { ClientOp, ClientOpMap, ServerOp } from './WebsocketModel';
 
-export { ClientOp, ServerCmd, type ClientOpMap, type ServerCmdMap } from "./WebsocketModel";
-export class WebsocketManager extends BaseModel.GameEvent<ServerCmd, ServerCmdMap> {
-    /** ws 欄位。 */
+export class WebsocketManager extends BaseModel.Singleton {
     private ws: WebSocket = null;
-    private static instance: WebsocketManager = null;
-    public static getInstance() {
-        if (this.instance === null) {
-            error("[WebSocket] null");
-        } else {
-            return this.instance;
-        }
-    }
+    private clientSendHandlers: { op: ClientOp; handler: (data: any) => void }[] = [];
 
-    /**
-     * constructor。
-     * @param url url
-     * @param open open
-     * @param close close
-     */
-    public constructor(url: string, open: Function, close: Function) {
-        super();
-        WebsocketManager.instance = this;
+    public connect(url: string, open: Function, close: Function): void {
         this.ws = new WebSocket(url);
+        this.bindClientSend();
 
         this.ws.onopen = () => {
-            log('[WebSocket] 連線成功');
             open(this.ws);
         };
 
         this.ws.onmessage = (event: MessageEvent) => {
             const msg = JSON.parse(event.data);
-            log('[WebSocket] 收到', msg);
+            if (this.isErrorMessage(msg)) {
+                this.logServerError(msg);
+                return;
+            }
+
             if (msg.type) {
-                this.eventTarget.emit(msg.type, msg.data);
+                EventManager.getInstance().serverPush.emit(msg.type as ServerOp, msg.data);
             }
         };
 
         this.ws.onclose = (event: CloseEvent) => {
-            WebsocketManager.instance.ws = null;
-            WebsocketManager.instance = null;
-            error(event.code, event.reason);
-            close(event);
+            this.unbindClientSend();
+            this.ws = null;
+            error(event.code);
         };
 
         this.ws.onerror = (event: Event) => {
-            error('[WebSocket] 連線錯誤', event);
+            error('[WebSocket] error event', event);
+            this.emitPrompt(GameErrorPrompt.NetworkReconnecting);
         };
-
-        return this;
     }
 
-    /** 發送指令到伺服器 */
-    public send<T extends ClientOp>(op: T, data: ClientOpMap[T]) {
-        this.ws.send(JSON.stringify({ op, data }));
+    public get isConnected(): boolean {
+        return this.ws !== null;
+    }
+
+    private bindClientSend() {
+        const bus = EventManager.getInstance().clientSend;
+        const keys = Object.keys(ClientOp) as Array<keyof typeof ClientOp>;
+        for (const key of keys) {
+            const op = ClientOp[key];
+            const handler = (data: ClientOpMap[ClientOp]) => {
+                this.ws.send(JSON.stringify({ op, data }));
+            };
+            bus.on(op, handler, this);
+            this.clientSendHandlers.push({ op, handler });
+        }
+    }
+
+    private unbindClientSend() {
+        const bus = EventManager.getInstance().clientSend;
+        for (const { op, handler } of this.clientSendHandlers) {
+            bus.off(op, handler, this);
+        }
+        this.clientSendHandlers.length = 0;
+    }
+
+    private isErrorMessage(msg: any): boolean {
+        return msg?.status === 'error' || msg?.type === 'error' || msg?.op === 'error';
+    }
+
+    private logServerError(msg: any) {
+        // error('[WebSocket] server error', msg);
+        console.error('[WebSocket] server error', msg);
+    }
+
+    private emitPrompt(message: GameErrorPrompt | string) {
+        EventManager.getInstance().gameState.emit(GmaeModel.ShowError, { message });
     }
 }

@@ -2,17 +2,74 @@ name: Cocos Creator Build & Deploy
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    tags:
+      - 'dev-*'
+      # - 'stage-*'
+      # - 'prod-*'
 
 jobs:
   # ==================== Build Job ====================
   build-web:
     runs-on: windows-latest
+    env:
+      COCOS_EDITOR_SYSTEM_EXE: C:\ProgramData\cocos\editors\Creator\3.8.8\CocosCreator.exe
+      COCOS_EDITOR_DIR: ${{ runner.temp }}\\CocosEditor-3.8.8
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Resolve environment and fixed URLs from tag
+        shell: powershell
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $fixedDevWsUrl = "wss://dev-game.jutechs.com/connect"
+          $fixedDevWebViewUrl = "http://127.0.0.1:5500/"
+          $fixedStageWsUrl = ""
+          $fixedStageWebViewUrl = ""
+          $fixedProdWsUrl = ""
+          $fixedProdWebViewUrl = ""
+          Write-Host "Current tag: $tag"
+
+          if ($tag -match '^dev-\d+\.\d+\.\d+$') {
+            $deployEnv = "dev"
+            $wsUrl = $fixedDevWsUrl
+            $webViewUrl = $fixedDevWebViewUrl
+            Write-Host "Use fixed dev WS URL: $wsUrl"
+            Write-Host "Use fixed dev WebView URL: $webViewUrl"
+          } elseif ($tag -match '^stage-\d+\.\d+\.\d+$') {
+            $deployEnv = "stage"
+            $wsUrl = $fixedStageWsUrl
+            $webViewUrl = $fixedStageWebViewUrl
+            Write-Host "Use fixed stage WS URL: $wsUrl"
+            Write-Host "Use fixed stage WebView URL: $webViewUrl"
+          } elseif ($tag -match '^prod-\d+\.\d+\.\d+$') {
+            $deployEnv = "prod"
+            $wsUrl = $fixedProdWsUrl
+            $webViewUrl = $fixedProdWebViewUrl
+            Write-Host "Use fixed prod WS URL: $wsUrl"
+            Write-Host "Use fixed prod WebView URL: $webViewUrl"
+          } else {
+            Write-Error "Invalid tag format: $tag. Expected dev-x.x.x / stage-x.x.x / prod-x.x.x"
+            exit 1
+          }
+
+          if ([string]::IsNullOrWhiteSpace($wsUrl)) {
+            Write-Error "WS URL for environment '$deployEnv' is empty. Please set fixed URL in .github/workflows/build.yml"
+            exit 1
+          }
+
+          if ([string]::IsNullOrWhiteSpace($webViewUrl)) {
+            Write-Error "WebView URL for environment '$deployEnv' is empty. Please set fixed URL in .github/workflows/build.yml"
+            exit 1
+          }
+
+          $wsUrl = $wsUrl.Trim()
+          $webViewUrl = $webViewUrl.Trim()
+          "DEPLOY_ENV=$deployEnv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GAME_WS_URL=$wsUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GAME_WEBVIEW_URL=$webViewUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Resolved DEPLOY_ENV=$deployEnv"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -22,26 +79,56 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Resolve Cocos Creator executable path
+        shell: powershell
+        run: |
+          if (Test-Path $env:COCOS_EDITOR_SYSTEM_EXE) {
+            "COCOS_EDITOR_EXE=$($env:COCOS_EDITOR_SYSTEM_EXE)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "USE_SYSTEM_COCOS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "Use system Cocos Creator: $($env:COCOS_EDITOR_SYSTEM_EXE)"
+          } else {
+            $fallbackExe = Join-Path $env:COCOS_EDITOR_DIR "CocosCreator.exe"
+            "COCOS_EDITOR_EXE=$fallbackExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "USE_SYSTEM_COCOS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "System Cocos Creator not found. Fallback to cached/downloaded editor at: $fallbackExe"
+          }
+
       - name: Cache Cocos Creator Editor
+        if: env.USE_SYSTEM_COCOS != 'true'
         uses: actions/cache@v4
         id: cocos-cache
         with:
-          path: ./CocosEditor
-          key: cocos-creator-3.8.8
+          path: ${{ env.COCOS_EDITOR_DIR }}
+          key: cocos-creator-3.8.8-${{ runner.os }}
 
       - name: Download Cocos Creator Editor
-        if: steps.cocos-cache.outputs.cache-hit != 'true'
+        if: env.USE_SYSTEM_COCOS != 'true' && steps.cocos-cache.outputs.cache-hit != 'true'
+        shell: powershell
         run: |
+          if (!(Test-Path $env:COCOS_EDITOR_DIR)) {
+            New-Item -ItemType Directory -Path $env:COCOS_EDITOR_DIR | Out-Null
+          }
           curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.8/CocosCreator-v3.8.8-win-121518.zip"
-          7z x CocosCreator.zip -oCocosEditor
+          7z x CocosCreator.zip "-o$env:COCOS_EDITOR_DIR"
           del CocosCreator.zip
-          dir CocosEditor
+          dir $env:COCOS_EDITOR_DIR
 
       - name: Cocos CLI Build
         shell: powershell
         timeout-minutes: 30
         run: |
-          $process = Start-Process -FilePath ".\CocosEditor\CocosCreator.exe" -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false;md5Cache=true;" -PassThru
+          if (Test-Path "build/web-mobile") {
+            Remove-Item -LiteralPath "build/web-mobile" -Recurse -Force
+            Write-Host "Removed stale build/web-mobile before build."
+          }
+
+          $editorExe = $env:COCOS_EDITOR_EXE
+          if (!(Test-Path $editorExe)) {
+            Write-Error "CocosCreator.exe not found at $editorExe"
+            exit 1
+          }
+
+          $process = Start-Process -FilePath $editorExe -ArgumentList "--project", ".", "--build", "platform=web-mobile;debug=false;md5Cache=true;" -PassThru
           $timeout = 600
           $timer = 0
           while (!$process.HasExited -and $timer -lt $timeout) {
@@ -64,6 +151,46 @@ jobs:
             Write-Host "Build may have failed - index.html not found"
             exit 1
           }
+
+      - name: Generate game-config.json
+        shell: powershell
+        run: |
+          if (!(Test-Path "build/web-mobile")) {
+            Write-Host "build/web-mobile not found"
+            exit 1
+          }
+
+          $wsUrl = $env:GAME_WS_URL
+          if ([string]::IsNullOrWhiteSpace($wsUrl)) {
+            $wsUrl = ""
+          } else {
+            $wsUrl = $wsUrl.Trim()
+          }
+
+          $webViewUrl = $env:GAME_WEBVIEW_URL
+          if ([string]::IsNullOrWhiteSpace($webViewUrl)) {
+            $webViewUrl = ""
+          } else {
+            $webViewUrl = $webViewUrl.Trim()
+          }
+
+          $tag = "${{ github.ref_name }}"
+          $version = $tag
+          if ($tag -match '^(dev|stage|prod)-(\d+\.\d+\.\d+)$') {
+            $version = $matches[2]
+          }
+
+          $config = [ordered]@{
+            version = $version
+            deployEnv = $env:DEPLOY_ENV
+            wsUrl = $wsUrl
+            webViewUrl = $webViewUrl
+            generatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          }
+
+          $json = $config | ConvertTo-Json -Depth 3
+          Set-Content -Path "build/web-mobile/game-config.json" -Value $json -Encoding utf8
+          Write-Host "Generated build/web-mobile/game-config.json"
 
       - name: List Build Output
         shell: powershell

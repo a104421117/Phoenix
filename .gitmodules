@@ -1,3 +1,6 @@
 [submodule "assets/Game.Client.Common"]
 	path = assets/Game.Client.Common
 	url = https://github.com/JUProjects/Game.Client.Common.git
+[submodule "assets/game-contracts"]
+	path = assets/game-contracts
+	url = https://github.com/JUProjects/game-contracts.git

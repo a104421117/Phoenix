@@ -11,7 +11,7 @@
     "_fntConfig": {
       "commonHeight": 16,
       "fontSize": 16,
-      "atlasName": "H5-C-Y_0.png",
+      "atlasName": "H5-C-Y.png",
       "fontDefDictionary": {
         "43": {
           "rect": {
@@ -48,50 +48,6 @@
         },
         "49": {
           "rect": {
-            "x": 51,
-            "y": 0,
-            "width": 16,
-            "height": 16
-          },
-          "xOffset": 0,
-          "yOffset": 0,
-          "xAdvance": 16
-        },
-        "50": {
-          "rect": {
-            "x": 68,
-            "y": 0,
-            "width": 16,
-            "height": 16
-          },
-          "xOffset": 0,
-          "yOffset": 0,
-          "xAdvance": 16
-        },
-        "51": {
-          "rect": {
-            "x": 85,
-            "y": 0,
-            "width": 16,
-            "height": 16
-          },
-          "xOffset": 0,
-          "yOffset": 0,
-          "xAdvance": 16
-        },
-        "52": {
-          "rect": {
-            "x": 102,
-            "y": 0,
-            "width": 16,
-            "height": 16
-          },
-          "xOffset": 0,
-          "yOffset": 0,
-          "xAdvance": 16
-        },
-        "53": {
-          "rect": {
             "x": 0,
             "y": 17,
             "width": 16,
@@ -101,7 +57,7 @@
           "yOffset": 0,
           "xAdvance": 16
         },
-        "54": {
+        "50": {
           "rect": {
             "x": 17,
             "y": 17,
@@ -112,7 +68,7 @@
           "yOffset": 0,
           "xAdvance": 16
         },
-        "55": {
+        "51": {
           "rect": {
             "x": 34,
             "y": 17,
@@ -123,10 +79,54 @@
           "yOffset": 0,
           "xAdvance": 16
         },
+        "52": {
+          "rect": {
+            "x": 0,
+            "y": 34,
+            "width": 16,
+            "height": 16
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 16
+        },
+        "53": {
+          "rect": {
+            "x": 17,
+            "y": 34,
+            "width": 16,
+            "height": 16
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 16
+        },
+        "54": {
+          "rect": {
+            "x": 34,
+            "y": 34,
+            "width": 16,
+            "height": 16
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 16
+        },
+        "55": {
+          "rect": {
+            "x": 0,
+            "y": 51,
+            "width": 16,
+            "height": 16
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 16
+        },
         "56": {
           "rect": {
-            "x": 51,
-            "y": 17,
+            "x": 17,
+            "y": 51,
             "width": 16,
             "height": 16
           },
@@ -136,8 +136,8 @@
         },
         "57": {
           "rect": {
-            "x": 68,
-            "y": 17,
+            "x": 34,
+            "y": 51,
             "width": 16,
             "height": 16
           },
@@ -145,10 +145,21 @@
           "yOffset": 0,
           "xAdvance": 16
         },
-        "119": {
+        "75": {
           "rect": {
-            "x": 85,
-            "y": 17,
+            "x": 0,
+            "y": 68,
+            "width": 16,
+            "height": 16
+          },
+          "xOffset": 0,
+          "yOffset": 0,
+          "xAdvance": 16
+        },
+        "77": {
+          "rect": {
+            "x": 17,
+            "y": 68,
             "width": 16,
             "height": 16
           },
@@ -158,19 +169,8 @@
         },
         "120": {
           "rect": {
-            "x": 102,
-            "y": 17,
-            "width": 16,
-            "height": 16
-          },
-          "xOffset": 0,
-          "yOffset": 0,
-          "xAdvance": 16
-        },
-        "121": {
-          "rect": {
-            "x": 0,
-            "y": 34,
+            "x": 34,
+            "y": 68,
             "width": 16,
             "height": 16
           },

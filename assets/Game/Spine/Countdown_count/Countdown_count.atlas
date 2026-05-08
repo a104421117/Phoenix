@@ -1,0 +1,17 @@
+Countdown_count.png
+size:264,264
+filter:Linear,Linear
+pma:true
+1
+bounds:92,2,80,119
+rotate:90
+2
+bounds:97,173,87,121
+rotate:90
+3
+bounds:2,16,88,123
+4
+bounds:2,141,93,119
+5
+bounds:97,84,87,121
+rotate:90

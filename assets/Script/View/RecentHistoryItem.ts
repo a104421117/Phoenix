@@ -1,6 +1,6 @@
 import { _decorator, Color, Component, Label, Node } from 'cc';
-import { NodeSwitcher } from '../../Base/NodeSwitcher';
-import { BaseModel } from '../../Base/BaseModel';
+import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
+import { BaseModel } from '../../Game.Client.Common/BaseModel';
 const { ccclass, property } = _decorator;
 
 /** MultipleHistoryColor 列舉。 */

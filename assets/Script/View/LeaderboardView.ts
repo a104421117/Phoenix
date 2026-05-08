@@ -1,6 +1,7 @@
-import { _decorator, Component, log, Node, Prefab, instantiate } from 'cc';
-import { GameData, GmaeModel } from '../Model/GameData';
-import { LeaderboardItem as LeaderboardItemData } from '../Model/GameModel';
+import { _decorator, Component, Node, Prefab, instantiate } from 'cc';
+import { GameData } from '../Model/GameData';
+import { GmaeModel, LeaderboardItem as LeaderboardItemData } from '../Model/GameModel';
+import { EventManager } from '../Model/EventManager';
 import { LeaderboardItem as LeaderboardItemComp } from './LeaderboardItem';
 const { ccclass, property } = _decorator;
 
@@ -23,16 +24,17 @@ export class LeaderboardView extends Component {
     private static readonly INFO_BETTING = 0;
     private static readonly INFO_RUNNING = 1;
     private static readonly INFO_CRASHED = 2;
+    private static readonly MAX_DISPLAY_COUNT = 6;
 
     /** start。 */
     start() {
         const gameData = GameData.getInstance();
-        gameData.on(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
-        gameData.on(GmaeModel.Leaderboard, this.onLeaderboard, this);
-        gameData.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        gameData.on(GmaeModel.Multiplier, this.onRunning, this);
-        gameData.on(GmaeModel.Explode, this.onCrashed, this);
-        gameData.on(GmaeModel.Settled, this.onSettled, this);
+        EventManager.getInstance().gameState.on(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Leaderboard, this.onLeaderboard, this);
+        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onRunning, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onCrashed, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
 
         this.maxBetCount = gameData.MaxBetCount;
     }
@@ -48,7 +50,6 @@ export class LeaderboardView extends Component {
      * @param countdown countdown
      */
     private onBetting(countdown: number) {
-        log('[LeaderboardView] state:', GameData.getInstance().RoundState, 'countdown:', countdown);
         this.currentInfoState = LeaderboardView.INFO_BETTING;
         this.pool.forEach((obj) => obj.switchInfo(this.currentInfoState));
     }
@@ -58,12 +59,8 @@ export class LeaderboardView extends Component {
      * @param multiplier multiplier
      */
     private onRunning(multiplier: number) {
-        log('[LeaderboardView] state:', GameData.getInstance().RoundState, 'multiplier:', multiplier);
         this.currentInfoState = LeaderboardView.INFO_RUNNING;
-        this.pool.forEach((obj) => {
-            obj.switchInfo(this.currentInfoState);
-            obj.setMultiplier(multiplier);
-        });
+        this.pool.forEach((obj) => obj.switchInfo(this.currentInfoState));
     }
 
     /**
@@ -71,14 +68,12 @@ export class LeaderboardView extends Component {
      * @param crashPoint crashPoint
      */
     private onCrashed(crashPoint: number) {
-        log('[LeaderboardView] state:', GameData.getInstance().RoundState, 'crashPoint:', crashPoint);
         this.currentInfoState = LeaderboardView.INFO_CRASHED;
         this.pool.forEach((obj) => obj.switchInfo(this.currentInfoState));
     }
 
     /** onSettled。 */
     private onSettled() {
-        log('[LeaderboardView] state:', GameData.getInstance().RoundState);
         this.pool.forEach((obj) => obj.reset());
     }
 
@@ -96,13 +91,14 @@ export class LeaderboardView extends Component {
      * @param leaderboard leaderboard
      */
     private onLeaderboard(leaderboard: LeaderboardItemData[]) {
-        log('[LeaderboardView] onLeaderboard', 'state:', GameData.getInstance().RoundState, 'count:', leaderboard.length, 'infoState:', this.currentInfoState, leaderboard.map(i => ({ rank: i.rank, playerId: i.playerId, totalBet: i.totalBet, profit: i.profit })));
+        const source = Array.isArray(leaderboard) ? leaderboard : [];
+        const topLeaderboard = source.slice(0, LeaderboardView.MAX_DISPLAY_COUNT);
         this.pool.forEach((obj) => obj.reset());
 
         const container = this.itemContainer ?? this.node;
-        for (let i = 0; i < leaderboard.length; i++) {
+        for (let i = 0; i < topLeaderboard.length; i++) {
             const obj = this.getItem(container);
-            obj.init(leaderboard[i]);
+            obj.init(topLeaderboard[i]);
             obj.switchInfo(this.currentInfoState);
         }
     }

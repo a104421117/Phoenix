@@ -1,8 +1,10 @@
-import { _decorator, Camera, Component, Enum, Node, UITransform, Vec3, instantiate, warn } from 'cc';
-import { GameData, GmaeModel } from '../Model/GameData';
+﻿import { _decorator, Component, Enum, Node, UITransform, Vec3, instantiate, warn } from 'cc';
+import { GameData } from '../Model/GameData';
+import { GmaeModel } from '../Model/GameModel';
+import { EventManager } from '../Model/EventManager';
 const { ccclass, property } = _decorator;
 
-/** ScrollDirection 列舉。 */
+/** 背景滾動方向 */
 enum ScrollDirection {
     Left = 0,
     Right = 1,
@@ -10,7 +12,7 @@ enum ScrollDirection {
     Up = 3,
 }
 
-/** CameraReturnEasing 列舉。 */
+/** 相機回彈緩動 */
 enum CameraReturnEasing {
     Linear = 0,
     QuadOut = 1,
@@ -21,96 +23,87 @@ enum CameraReturnEasing {
 
 @ccclass('BackgroundScroller')
 export class BackgroundScroller extends Component {
-    /** 第一張背景（不填就用目前節點）。 */
-    @property({ type: Node, tooltip: '第一張背景（不填就用目前節點）' })
+    /** 背景片段 A（必填） */
+    @property({ type: Node, tooltip: '背景片段 A（必填）' })
     private segmentA: Node = null;
 
-    /** 第二張背景（可不填，會自動複製第一張）。 */
-    @property({ type: Node, tooltip: '第二張背景（可不填，會自動複製第一張）' })
+    /** 背景片段 B（可選，未填會自動複製 A） */
+    @property({ type: Node, tooltip: '背景片段 B（可選，未填會自動複製 A）' })
     private segmentB: Node = null;
 
-    /** 第三張背景（可不填，會自動複製第一張）。 */
-    @property({ type: Node, tooltip: '第三張背景（可不填，會自動複製第一張）' })
+    /** 背景片段 C（可選，未填會自動複製 A） */
+    @property({ type: Node, tooltip: '背景片段 C（可選，未填會自動複製 A）' })
     private segmentC: Node = null;
 
-    /** 移動速度（像素/秒）。 */
-    @property({ tooltip: '移動速度（像素/秒）' })
+    /** 背景滾動速度（像素/秒） */
+    @property({ tooltip: '背景滾動速度（像素/秒）' })
     private speed: number = 500;
 
-    /** 背景移動方向。 */
-    @property({ type: Enum(ScrollDirection), tooltip: '背景移動方向' })
+    /** 背景滾動方向 */
+    @property({ type: Enum(ScrollDirection), tooltip: '背景滾動方向' })
     private direction: ScrollDirection = ScrollDirection.Left;
 
-    /** 要往上移動的相機節點（不填就不移動相機）。 */
-    @property({ type: Node, tooltip: '要往上移動的相機節點（不填就不移動相機）' })
+    /** Sky 背景節點（場景關聯，未填會自動尋找名稱為 SkyNode 的節點） */
+    @property({ type: Node, tooltip: 'Sky 背景節點（場景關聯，未填會自動尋找名稱為 SkyNode 的節點）' })
+    private skyNode: Node = null;
+
+    /** 已棄用：保留舊場景資料，不再驅動相機位移 */
+    @property({ type: Node, tooltip: '已棄用：保留舊場景資料，不再驅動相機位移' })
     private cameraNode: Node = null;
 
-    /** 幾秒後開始讓相機上升。 */
-    @property({ tooltip: '幾秒後開始讓相機上升' })
+    /** Running 後延遲幾秒開始背景下移 */
+    @property({ tooltip: 'Running 後延遲幾秒開始背景下移' })
     private cameraRiseDelay: number = 5;
 
-    /** 相機上升速度（像素/秒），<=0 代表關閉。 */
-    @property({ tooltip: '相機上升速度（像素/秒），<=0 代表關閉' })
+    /** 背景下移速度（像素/秒） */
+    @property({ tooltip: '背景下移速度（像素/秒）' })
     private cameraRiseSpeed: number = 60;
 
-    /** 相機最高 Y（0 代表不限制）。 */
-    @property({ tooltip: '相機最高 Y（0 代表不限制）' })
-    private cameraMaxY: number = 0;
+    /** SkyNode Y 下限，0 代表不限制 */
+    @property({ tooltip: 'SkyNode Y 下限，0 代表不限制' })
+    private cameraMaxY: number = -5950;
 
-    /** 每回合開始（Betting）是否重置背景位置（不影響回合結束 camera 快退）。 */
-    @property({ tooltip: '每回合開始（Betting）是否重置背景位置（不影響回合結束 camera 快退）' })
-    private resetOnRoundStart: boolean = false;
-
-    /** 回定點時間（毫秒），回合結束進入 Settled 時使用。 */
-    @property({ tooltip: '回定點時間（毫秒），回合結束進入 Settled 時使用' })
+    /** 回合 Settled 時，SkyNode 回到起始位置的時間（毫秒） */
+    @property({ tooltip: '回合 Settled 時，SkyNode 回到起始位置的時間（毫秒）' })
     private cameraReturnDurationMs: number = 333;
 
-    /** 回定點緩動。 */
-    @property({ type: Enum(CameraReturnEasing), tooltip: '回定點緩動' })
+    /** 相機回彈緩動 */
+    @property({ type: Enum(CameraReturnEasing), tooltip: '相機回彈緩動' })
     private cameraReturnEasing: CameraReturnEasing = CameraReturnEasing.CubicOut;
 
-    /** 相機上升是否以 server runningElapsed 為主（重連可同步）。 */
-    @property({ tooltip: '相機上升是否以 server runningElapsed 為主（重連可同步）' })
+    /** 背景下移是否使用 server runningElapsed 為主 */
+    @property({ tooltip: '背景下移是否使用 server runningElapsed 為主' })
     private useServerElapsedForCameraRise: boolean = true;
 
-    /** runningElapsed 單位縮放（秒=1，毫秒=0.001）。 */
-    @property({ tooltip: 'runningElapsed 單位縮放（秒=1，毫秒=0.001）' })
+    /** runningElapsed 單位縮放（毫秒轉秒可用 0.001） */
+    @property({ tooltip: 'runningElapsed 單位縮放（毫秒轉秒可用 0.001）' })
     private runningElapsedScale: number = 0.001;
 
-    /** Running 期間在兩次 server tick 間是否用本地時間補推進。 */
-    @property({ tooltip: 'Running 期間在兩次 server tick 間是否用本地時間補推進' })
+    /** Running 期間是否在 server tick 之間使用本地時間補間 */
+    @property({ tooltip: 'Running 期間是否在 server tick 之間使用本地時間補間' })
     private predictElapsedBetweenServerTicks: boolean = true;
 
-    /** segments 欄位。 */
     private segments: Node[] = [];
-    /** segmentSize 欄位。 */
     private segmentSize: number = 0;
-    /** axisOrigin 欄位。 */
     private axisOrigin: number = 0;
-    /** elapsedTime 欄位。 */
     private elapsedTime: number = 0;
     private cameraStartPosition: Vec3 = new Vec3();
-    /** serverRoundElapsedSeconds 欄位。 */
+    private riseTargetNode: Node = null;
     private serverRoundElapsedSeconds: number = 0;
-    /** isRoundRunning 欄位。 */
     private isRoundRunning: boolean = false;
-    /** isCameraReturningToStart 欄位。 */
     private isCameraReturningToStart: boolean = false;
-    /** cameraReturnFromY 欄位。 */
     private cameraReturnFromY: number = 0;
-    /** cameraReturnElapsedSeconds 欄位。 */
     private cameraReturnElapsedSeconds: number = 0;
-    /** hasHandledBettingReset 欄位。 */
     private hasHandledBettingReset: boolean = false;
 
-    /** start。 */
+    /** 初始化 */
     start() {
         if (!this.segmentA) {
             this.segmentA = this.node;
         }
 
         if (!this.segmentA) {
-            warn('[BackgroundScroller] 缺少 segmentA。');
+            warn('[BackgroundScroller] 找不到 segmentA');
             this.enabled = false;
             return;
         }
@@ -120,7 +113,7 @@ export class BackgroundScroller extends Component {
 
         const transform = this.segmentA.getComponent(UITransform);
         if (!transform) {
-            warn('[BackgroundScroller] segmentA 缺少 UITransform。');
+            warn('[BackgroundScroller] segmentA 缺少 UITransform');
             this.enabled = false;
             return;
         }
@@ -130,38 +123,35 @@ export class BackgroundScroller extends Component {
         this.segmentSize = (horizontal ? transform.width : transform.height) * axisScale;
 
         if (this.segmentSize <= 0) {
-            warn('[BackgroundScroller] 背景尺寸為 0，無法滾動。');
+            warn('[BackgroundScroller] 背景尺寸小於等於 0，無法滾動');
             this.enabled = false;
             return;
         }
 
-        this.tryResolveCameraNode();
+        this.tryResolveRiseTargetNode();
         this.captureCameraStartPosition();
         this.resetPositions();
         this.elapsedTime = 0;
 
-        GameData.getInstance().on(GmaeModel.BettingCountdown, this.onRoundStart, this);
-        GameData.getInstance().on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        GameData.getInstance().on(GmaeModel.Multiplier, this.onRunningMultiplier, this);
-        GameData.getInstance().on(GmaeModel.Explode, this.onRoundExplode, this);
-        GameData.getInstance().on(GmaeModel.Settled, this.onRoundSettled, this);
+        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onRoundStart, this);
+        EventManager.getInstance().gameState.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onRunningMultiplier, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onRoundExplode, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onRoundSettled, this);
 
         this.syncCameraRiseFromCurrentGameState();
     }
 
-    /** onDestroy。 */
+    /** 移除監聽 */
     onDestroy() {
-        GameData.getInstance().off(GmaeModel.BettingCountdown, this.onRoundStart, this);
-        GameData.getInstance().off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        GameData.getInstance().off(GmaeModel.Multiplier, this.onRunningMultiplier, this);
-        GameData.getInstance().off(GmaeModel.Explode, this.onRoundExplode, this);
-        GameData.getInstance().off(GmaeModel.Settled, this.onRoundSettled, this);
+        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onRoundStart, this);
+        EventManager.getInstance().gameState.off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onRunningMultiplier, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onRoundExplode, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onRoundSettled, this);
     }
 
-    /**
-     * update。
-     * @param deltaTime deltaTime
-     */
+    /** 每幀更新 */
     update(deltaTime: number) {
         if (this.segments.length < 2) return;
 
@@ -185,9 +175,7 @@ export class BackgroundScroller extends Component {
                 break;
         }
 
-        if (this.updateCameraReturn(deltaTime)) {
-            return;
-        }
+        if (this.updateCameraReturn(deltaTime)) return;
 
         if (this.useServerElapsedForCameraRise) {
             if (this.isRoundRunning && this.predictElapsedBetweenServerTicks) {
@@ -201,7 +189,7 @@ export class BackgroundScroller extends Component {
         this.updateCameraRiseLocal(deltaTime);
     }
 
-    /** resetPositions。 */
+    /** 將背景片段重新排列 */
     private resetPositions() {
         const posA = this.segmentA.position.clone();
         const horizontal = this.direction === ScrollDirection.Left || this.direction === ScrollDirection.Right;
@@ -230,35 +218,40 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /** onRoundStart。 */
+    /**
+     * 回合開始時只在 Y 軸滾動才重排背景，
+     * X 軸不做重排，避免每回合從左邊重新開始。
+     */
     private onRoundStart() {
         if (this.hasHandledBettingReset) return;
         this.hasHandledBettingReset = true;
-        if (this.resetOnRoundStart) {
+
+        const isVerticalScroll = this.direction === ScrollDirection.Down || this.direction === ScrollDirection.Up;
+        if (isVerticalScroll) {
             this.resetPositions();
         }
+
         this.elapsedTime = 0;
         this.serverRoundElapsedSeconds = 0;
         this.isRoundRunning = false;
     }
 
-    /**
-     * onRunningElapsed。
-     * @param elapsed elapsed
-     */
+    /** 同步 runningElapsed */
     private onRunningElapsed(elapsed: number) {
         if (!Number.isFinite(elapsed)) return;
         if (GameData.getInstance().RoundState !== 'Running') return;
+
         this.hasHandledBettingReset = false;
         this.serverRoundElapsedSeconds = Math.max(0, elapsed * this.runningElapsedScale);
         this.isRoundRunning = true;
         this.isCameraReturningToStart = false;
+
         if (this.useServerElapsedForCameraRise) {
             this.updateCameraRiseByElapsed();
         }
     }
 
-    /** onRunningMultiplier。 */
+    /** 收到倍率更新代表仍在 Running */
     private onRunningMultiplier() {
         if (GameData.getInstance().RoundState !== 'Running') return;
         this.hasHandledBettingReset = false;
@@ -266,14 +259,14 @@ export class BackgroundScroller extends Component {
         this.isCameraReturningToStart = false;
     }
 
-    /** onRoundExplode。 */
+    /** 回合爆點 */
     private onRoundExplode() {
         this.hasHandledBettingReset = false;
         this.isRoundRunning = false;
         this.isCameraReturningToStart = false;
     }
 
-    /** onRoundSettled。 */
+    /** 回合結算 */
     private onRoundSettled() {
         this.hasHandledBettingReset = false;
         this.isRoundRunning = false;
@@ -281,19 +274,19 @@ export class BackgroundScroller extends Component {
         this.beginCameraReturnToStart();
     }
 
-    /** captureCameraStartPosition。 */
+    /** 記錄背景起始位置 */
     private captureCameraStartPosition() {
-        if (!this.cameraNode) return;
-        this.cameraStartPosition.set(this.cameraNode.position);
+        if (!this.riseTargetNode) return;
+        this.cameraStartPosition.set(this.riseTargetNode.position);
     }
 
-    /** resetCameraPosition。 */
+    /** 背景回到起始位置 */
     private resetCameraPosition() {
-        if (!this.cameraNode) return;
-        this.cameraNode.setPosition(this.cameraStartPosition);
+        if (!this.riseTargetNode) return;
+        this.riseTargetNode.setPosition(this.cameraStartPosition);
     }
 
-    /** syncCameraRiseFromCurrentGameState。 */
+    /** 依目前遊戲狀態同步背景下移 */
     private syncCameraRiseFromCurrentGameState() {
         const gameData = GameData.getInstance();
         this.serverRoundElapsedSeconds = Math.max(0, gameData.RunningElapsed * this.runningElapsedScale);
@@ -319,11 +312,7 @@ export class BackgroundScroller extends Component {
         this.updateCameraReturn(1 / 60);
     }
 
-    /**
-     * prepareSegments。
-     * @param container container
-     * @returns prepareSegments 回傳值
-     */
+    /** 準備三段背景 */
     private prepareSegments(container: Node): Node[] {
         const segments: Node[] = [];
         this.pushUnique(segments, this.segmentA);
@@ -356,21 +345,14 @@ export class BackgroundScroller extends Component {
         return segments;
     }
 
-    /**
-     * pushUnique。
-     * @param target target
-     * @param node node
-     */
+    /** 陣列去重加入 */
     private pushUnique(target: Node[], node: Node) {
         if (!node) return;
-        if (target.includes(node)) return;
+        if (target.indexOf(node) >= 0) return;
         target.push(node);
     }
 
-    /**
-     * moveX。
-     * @param delta delta
-     */
+    /** X 軸平移 */
     private moveX(delta: number) {
         for (const node of this.segments) {
             const p = node.position;
@@ -378,10 +360,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /**
-     * moveY。
-     * @param delta delta
-     */
+    /** Y 軸平移 */
     private moveY(delta: number) {
         for (const node of this.segments) {
             const p = node.position;
@@ -389,7 +368,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /** wrapLeft。 */
+    /** 向左滾動時回收 */
     private wrapLeft() {
         const limit = this.axisOrigin - this.segmentSize;
         let guard = 0;
@@ -409,7 +388,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /** wrapRight。 */
+    /** 向右滾動時回收 */
     private wrapRight() {
         const limit = this.axisOrigin + this.segmentSize;
         let guard = 0;
@@ -429,7 +408,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /** wrapDown。 */
+    /** 向下滾動時回收 */
     private wrapDown() {
         const limit = this.axisOrigin - this.segmentSize;
         let guard = 0;
@@ -449,7 +428,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /** wrapUp。 */
+    /** 向上滾動時回收 */
     private wrapUp() {
         const limit = this.axisOrigin + this.segmentSize;
         let guard = 0;
@@ -469,10 +448,7 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /**
-     * getRightmostX。
-     * @returns getRightmostX 回傳值
-     */
+    /** 取得最右 X */
     private getRightmostX(): number {
         let value = Number.NEGATIVE_INFINITY;
         for (const node of this.segments) {
@@ -481,10 +457,7 @@ export class BackgroundScroller extends Component {
         return value;
     }
 
-    /**
-     * getLeftmostX。
-     * @returns getLeftmostX 回傳值
-     */
+    /** 取得最左 X */
     private getLeftmostX(): number {
         let value = Number.POSITIVE_INFINITY;
         for (const node of this.segments) {
@@ -493,10 +466,7 @@ export class BackgroundScroller extends Component {
         return value;
     }
 
-    /**
-     * getTopmostY。
-     * @returns getTopmostY 回傳值
-     */
+    /** 取得最上 Y */
     private getTopmostY(): number {
         let value = Number.NEGATIVE_INFINITY;
         for (const node of this.segments) {
@@ -505,10 +475,7 @@ export class BackgroundScroller extends Component {
         return value;
     }
 
-    /**
-     * getBottommostY。
-     * @returns getBottommostY 回傳值
-     */
+    /** 取得最下 Y */
     private getBottommostY(): number {
         let value = Number.POSITIVE_INFINITY;
         for (const node of this.segments) {
@@ -517,59 +484,51 @@ export class BackgroundScroller extends Component {
         return value;
     }
 
-    /**
-     * updateCameraRiseLocal。
-     * @param deltaTime deltaTime
-     */
+    /** 本地時間模式的背景下移 */
     private updateCameraRiseLocal(deltaTime: number) {
-        if (!this.cameraNode || this.cameraRiseSpeed <= 0) return;
+        if (!this.riseTargetNode || this.cameraRiseSpeed <= 0) return;
         if (this.elapsedTime < this.cameraRiseDelay) return;
 
-        const p = this.cameraNode.position;
-        let nextY = p.y + this.cameraRiseSpeed * deltaTime;
-
+        const p = this.riseTargetNode.position;
+        let nextY = p.y - this.cameraRiseSpeed * deltaTime;
         if (this.cameraMaxY !== 0) {
-            nextY = Math.min(nextY, this.cameraMaxY);
+            nextY = Math.max(nextY, this.cameraMaxY);
         }
 
-        this.cameraNode.setPosition(p.x, nextY, p.z);
+        this.riseTargetNode.setPosition(p.x, nextY, p.z);
     }
 
-    /** updateCameraRiseByElapsed。 */
+    /** runningElapsed 模式的背景下移 */
     private updateCameraRiseByElapsed() {
-        if (!this.cameraNode || this.cameraRiseSpeed <= 0) return;
+        if (!this.riseTargetNode || this.cameraRiseSpeed <= 0) return;
 
         const riseElapsed = Math.max(0, this.serverRoundElapsedSeconds - this.cameraRiseDelay);
-        let targetY = this.cameraStartPosition.y + this.cameraRiseSpeed * riseElapsed;
+        let targetY = this.cameraStartPosition.y - this.cameraRiseSpeed * riseElapsed;
         if (this.cameraMaxY !== 0) {
-            targetY = Math.min(targetY, this.cameraMaxY);
+            targetY = Math.max(targetY, this.cameraMaxY);
         }
 
-        const p = this.cameraNode.position;
-        this.cameraNode.setPosition(p.x, targetY, p.z);
+        const p = this.riseTargetNode.position;
+        this.riseTargetNode.setPosition(p.x, targetY, p.z);
     }
 
-    /** beginCameraReturnToStart。 */
+    /** 開始背景回彈 */
     private beginCameraReturnToStart() {
-        if (!this.cameraNode) return;
-        this.cameraReturnFromY = this.cameraNode.position.y;
+        if (!this.riseTargetNode) return;
+        this.cameraReturnFromY = this.riseTargetNode.position.y;
         this.cameraReturnElapsedSeconds = 0;
         this.isCameraReturningToStart = true;
     }
 
-    /**
-     * updateCameraReturn。
-     * @param deltaTime deltaTime
-     * @returns updateCameraReturn 回傳值
-     */
+    /** 更新背景回彈，回傳 true 代表本幀已處理 */
     private updateCameraReturn(deltaTime: number): boolean {
         if (!this.isCameraReturningToStart) return false;
-        if (!this.cameraNode) {
+        if (!this.riseTargetNode) {
             this.isCameraReturningToStart = false;
             return false;
         }
 
-        const current = this.cameraNode.position;
+        const current = this.riseTargetNode.position;
         const diffY = this.cameraStartPosition.y - this.cameraReturnFromY;
         const durationSeconds = Math.max(0, this.cameraReturnDurationMs) / 1000;
 
@@ -583,7 +542,8 @@ export class BackgroundScroller extends Component {
         const t = Math.min(1, this.cameraReturnElapsedSeconds / durationSeconds);
         const easedT = this.evaluateCameraReturnEasing(t);
         const nextY = this.cameraReturnFromY + diffY * easedT;
-        this.cameraNode.setPosition(current.x, nextY, current.z);
+        this.riseTargetNode.setPosition(current.x, nextY, current.z);
+
         if (t >= 1) {
             this.resetCameraPosition();
             this.isCameraReturningToStart = false;
@@ -591,11 +551,7 @@ export class BackgroundScroller extends Component {
         return true;
     }
 
-    /**
-     * evaluateCameraReturnEasing。
-     * @param t t
-     * @returns evaluateCameraReturnEasing 回傳值
-     */
+    /** 計算回彈緩動值 */
     private evaluateCameraReturnEasing(t: number): number {
         const x = this.clamp01(t);
         switch (this.cameraReturnEasing) {
@@ -613,28 +569,43 @@ export class BackgroundScroller extends Component {
         }
     }
 
-    /**
-     * clamp01。
-     * @param value value
-     * @returns clamp01 回傳值
-     */
+    /** 夾在 0 到 1 */
     private clamp01(value: number): number {
         if (value < 0) return 0;
         if (value > 1) return 1;
         return value;
     }
 
-    /** tryResolveCameraNode。 */
-    private tryResolveCameraNode() {
-        if (this.cameraNode) return;
-
-        let current: Node = this.segmentA;
-        while (current) {
-            if (current.getComponent(Camera)) {
-                this.cameraNode = current;
-                return;
-            }
-            current = current.parent;
+    /** 解析背景下移目標（固定 MainCamera，不再移動） */
+    private tryResolveRiseTargetNode() {
+        if (this.skyNode) {
+            this.riseTargetNode = this.skyNode;
+            return;
         }
+
+        const scene = this.node.scene;
+        if (!scene) return;
+
+        const found = this.findNodeByName(scene, 'SkyNode');
+        if (!found) {
+            warn('[BackgroundScroller] 找不到 SkyNode，將略過背景上升視覺位移');
+            return;
+        }
+
+        this.skyNode = found;
+        this.riseTargetNode = found;
+    }
+
+    /** 由根節點遞迴尋找指定名稱節點 */
+    private findNodeByName(root: Node, nodeName: string): Node | null {
+        if (root.name === nodeName) return root;
+
+        for (const child of root.children) {
+            const found = this.findNodeByName(child, nodeName);
+            if (found) return found;
+        }
+
+        return null;
     }
 }
+

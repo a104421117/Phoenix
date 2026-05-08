@@ -16,10 +16,13 @@ export class RoomObj extends Component {
     private roomId: string = '';
     private callback: (roomId: string) => void = null;
 
-    public init(roomId: string, playerCount: number, maxPlayers: number, callback: (roomId: string) => void) {
+    public init(roomId: string, playerCount: number, maxPlayers: number | null | undefined, callback: (roomId: string) => void) {
+        const maxPlayersText = (typeof maxPlayers === 'number' && Number.isFinite(maxPlayers))
+            ? `${Math.floor(maxPlayers)}`
+            : '-';
         this.roomId = roomId;
         this.roomIdLabel.string = roomId;
-        this.playerCountLabel.string = `${playerCount}/${maxPlayers}`;
+        this.playerCountLabel.string = `${playerCount}/${maxPlayersText}`;
         this.callback = callback;
         this.joinBtn.node.on(Button.EventType.CLICK, this.onJoin, this);
         this.spine.setAnimation(0, 'table_crash_phoenix_idle', true);

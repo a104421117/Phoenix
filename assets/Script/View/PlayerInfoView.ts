@@ -1,6 +1,8 @@
 import { _decorator, Component, Label } from 'cc';
-import { BaseModel } from '../../Base/BaseModel';
-import { GameData, GmaeModel } from '../Model/GameData';
+import { BaseModel } from '../../Game.Client.Common/BaseModel';
+import { GameData } from '../Model/GameData';
+import { GmaeModel } from '../Model/GameModel';
+import { EventManager } from '../Model/EventManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('PlayerInfoView')
@@ -15,8 +17,8 @@ export class PlayerInfoView extends Component {
     /** start。 */
     start() {
         const gameData = GameData.getInstance();
-        gameData.on(GmaeModel.PlayerId, this.setPlayerId, this);
-        gameData.on(GmaeModel.Balance, this.setBalance, this);
+        EventManager.getInstance().gameState.on(GmaeModel.PlayerId, this.setPlayerId, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Balance, this.setBalance, this);
 
         this.setPlayerId(gameData.PlayerId);
         this.setBalance(gameData.Balance);

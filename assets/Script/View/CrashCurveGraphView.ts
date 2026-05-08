@@ -1,6 +1,7 @@
-import { _decorator, Camera, Color, Component, Graphics, Node, UITransform, Vec3, warn } from 'cc';
-import { GameData, GmaeModel } from '../Model/GameData';
-import type { MultiplierCurvePoint } from '../Model/GameModel';
+import { _decorator, Color, Component, Graphics, UITransform, Vec3, warn } from 'cc';
+import { GameData } from '../Model/GameData';
+import { GmaeModel, type MultiplierCurvePoint } from '../Model/GameModel';
+import { EventManager } from '../Model/EventManager';
 const { ccclass, property } = _decorator;
 
 /** CurveSample 型別定義。 */
@@ -64,7 +65,7 @@ export class CrashCurveGraphView extends Component {
     private predictElapsedBetweenServerTicks: boolean = true;
 
     /** 進度追蹤平滑速度（越大越貼近 server，建議 8~16）。 */
-    @property({ tooltip: '進度追蹤平滑速度（越大越貼近 server，建議 8~16）' })
+    @property({ tooltip: '進度追蹤平滑速度（越大越貼近 server）', range: [8, 16, 1], slide: true })
     private progressSmoothingSpeed: number = 12;
 
     /** 視覺時間上限（秒，<=0 代表使用完整曲線時間）。 */
@@ -111,50 +112,6 @@ export class CrashCurveGraphView extends Component {
     @property({ tooltip: '下內距' })
     private paddingBottom: number = 12;
 
-    /** 可選：要沿曲線移動的目標節點（例如鳳凰）。 */
-    @property({ type: Node, tooltip: '可選：要沿曲線移動的目標節點（例如鳳凰）' })
-    private followTarget: Node = null;
-
-    /** 是否由本元件依倍率驅動 followTarget 位置。 */
-    @property({ tooltip: '是否由本元件依倍率驅動 followTarget 位置' })
-    private driveTargetByMultiplier: boolean = false;
-
-    /** followTarget 位置是否平滑追目標（關閉則直接貼點）。 */
-    @property({ tooltip: 'followTarget 位置是否平滑追目標（關閉則直接貼點）' })
-    private smoothTargetPosition: boolean = true;
-
-    /** followTarget 位置平滑速度（越大越快貼近，建議 6~14）。 */
-    @property({ tooltip: 'followTarget 位置平滑速度（越大越快貼近，建議 6~14）' })
-    private targetPositionFollowSpeed: number = 10;
-
-    /** followTarget 每秒最大移動距離（像素，避免大步長瞬移）。 */
-    @property({ tooltip: 'followTarget 每秒最大移動距離（像素，避免大步長瞬移）' })
-    private targetMaxMoveSpeed: number = 520;
-
-    /** 是否同步 followTarget 角度（曲線切線方向）。 */
-    @property({ tooltip: '是否同步 followTarget 角度（曲線切線方向）' })
-    private driveTargetAngle: boolean = true;
-
-    /** followTarget 角度平滑係數（0~1）。 */
-    @property({ tooltip: 'followTarget 角度平滑係數（0~1）' })
-    private targetAngleLerp: number = 0.18;
-
-    /** followTarget 跟隨時的額外偏移（目標父節點座標）。 */
-    @property({ type: Vec3, tooltip: 'followTarget 跟隨時的額外偏移（目標父節點座標）' })
-    private targetOffset: Vec3 = new Vec3(0, 0, 0);
-
-    /** 是否啟用跨相機座標轉換（UI 曲線 -> 目標相機）。 */
-    @property({ tooltip: '是否啟用跨相機座標轉換（UI 曲線 -> 目標相機）' })
-    private useCrossCameraMapping: boolean = false;
-
-    /** 曲線所在 Camera（通常是 UI Camera）。 */
-    @property({ type: Camera, tooltip: '曲線所在 Camera（通常是 UI Camera）' })
-    private graphCamera: Camera = null;
-
-    /** 目標節點所在 Camera（例如 Main Camera）。 */
-    @property({ type: Camera, tooltip: '目標節點所在 Camera（例如 Main Camera）' })
-    private targetCamera: Camera = null;
-
     /** curve 欄位。 */
     private curve: MultiplierCurvePoint[] = [];
     /** currentMultiplier 欄位。 */
@@ -191,23 +148,6 @@ export class CrashCurveGraphView extends Component {
     private warnedSmallPlotArea: boolean = false;
     /** warnedInsufficientCurve 欄位。 */
     private warnedInsufficientCurve: boolean = false;
-    private tmpScreen: Vec3 = new Vec3();
-    private tmpWorld: Vec3 = new Vec3();
-    private tmpLocal: Vec3 = new Vec3();
-    private tmpFollowTargetLocal: Vec3 = new Vec3();
-
-    /**
-     * releaseFollowTarget。
-     * @param target? target?
-     */
-    public releaseFollowTarget(target?: Node): void {
-        if (!this.followTarget) return;
-        if (target && this.followTarget !== target) return;
-
-        this.driveTargetByMultiplier = false;
-        this.driveTargetAngle = false;
-        this.followTarget = null;
-    }
 
     /** start。 */
     start() {
@@ -220,20 +160,29 @@ export class CrashCurveGraphView extends Component {
         this.targetMultiplier = this.currentMultiplier;
         this.targetElapsed = this.currentElapsed;
 
-        gameData.on(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
-        gameData.on(GmaeModel.Multiplier, this.onMultiplier, this);
-        gameData.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        gameData.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        gameData.on(GmaeModel.Explode, this.onExplode, this);
-        gameData.on(GmaeModel.Settled, this.onSettled, this);
+        EventManager.getInstance().gameState.on(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onMultiplier, this);
+        EventManager.getInstance().gameState.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onExplode, this);
+        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
 
         this.syncProgressFromCurrentGameState();
         this.redraw();
-        this.updateFollowTarget();
+    }
+
+    /** onDestroy. */
+    protected onDestroy(): void {
+        EventManager.getInstance().gameState.off(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onMultiplier, this);
+        EventManager.getInstance().gameState.off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onBetting, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onExplode, this);
+        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onSettled, this);
     }
 
     /**
-     * update。
+     * update.
      * @param deltaTime deltaTime
      */
     update(deltaTime: number) {
@@ -259,7 +208,6 @@ export class CrashCurveGraphView extends Component {
                 this.redraw();
             }
         }
-        this.updateFollowTarget(deltaTime);
     }
 
     /**
@@ -295,6 +243,20 @@ export class CrashCurveGraphView extends Component {
         return this.getProgressSample();
     }
 
+    /** sampleByElapsed。 */
+    public sampleByElapsed(elapsedSeconds: number): CurveSample | null {
+        if (!this.plotArea) return null;
+        if (this.curve.length < 2) return null;
+
+        const point = this.getPointByElapsed(elapsedSeconds);
+        if (!point) return null;
+
+        const localPoint = this.toLocalPoint(point.t, point.m);
+        const angle = this.getAngleByTime(point.t);
+        const worldPosition = this.plotArea.convertToWorldSpaceAR(localPoint);
+        return { worldPosition, angle };
+    }
+
     /**
      * onMultiplierCurve。
      * @param curve curve
@@ -305,7 +267,6 @@ export class CrashCurveGraphView extends Component {
         this.currentElapsed = this.clamp(this.currentElapsed, this.curveMinT, this.curveMaxT);
         this.syncProgressFromCurrentGameState();
         this.redraw();
-        this.updateFollowTarget();
     }
 
     /**
@@ -319,7 +280,6 @@ export class CrashCurveGraphView extends Component {
         if (this.showProgress || this.drawOnlyProgress) {
             this.redraw();
         }
-        this.updateFollowTarget();
     }
 
     /**
@@ -338,7 +298,6 @@ export class CrashCurveGraphView extends Component {
         if (this.showProgress || this.drawOnlyProgress) {
             this.redraw();
         }
-        this.updateFollowTarget();
     }
 
     /** onBetting。 */
@@ -353,7 +312,6 @@ export class CrashCurveGraphView extends Component {
         if (this.showProgress || this.drawOnlyProgress) {
             this.redraw();
         }
-        this.updateFollowTarget(0, true);
     }
 
     /**
@@ -655,27 +613,6 @@ export class CrashCurveGraphView extends Component {
     }
 
     /**
-     * updateFollowTarget。
-     * @param deltaTime deltaTime
-     * @param forceSnap forceSnap
-     */
-    private updateFollowTarget(deltaTime: number = 0, forceSnap: boolean = false) {
-        if (!this.driveTargetByMultiplier) return;
-        if (!this.followTarget) return;
-
-        const sample = this.getProgressSample();
-        if (!sample) return;
-
-        const world = this.mapGraphWorldToTargetWorld(sample.worldPosition);
-        this.setTargetByWorld(world, deltaTime, forceSnap);
-
-        if (!this.driveTargetAngle) return;
-        const t = this.clamp(this.targetAngleLerp, 0, 1);
-        const current = this.followTarget.angle;
-        this.followTarget.angle = current + (sample.angle - current) * t;
-    }
-
-    /**
      * getProgressSample。
      * @returns getProgressSample 回傳值
      */
@@ -720,80 +657,6 @@ export class CrashCurveGraphView extends Component {
         const dy = pb.y - pa.y;
         if (Math.abs(dx) < 0.000001 && Math.abs(dy) < 0.000001) return 0;
         return Math.atan2(dy, dx) * 180 / Math.PI;
-    }
-
-    /**
-     * mapGraphWorldToTargetWorld。
-     * @param graphWorldPosition graphWorldPosition
-     * @returns mapGraphWorldToTargetWorld 回傳值
-     */
-    private mapGraphWorldToTargetWorld(graphWorldPosition: Vec3): Vec3 {
-        if (!this.useCrossCameraMapping) {
-            this.tmpWorld.set(graphWorldPosition);
-            return this.tmpWorld;
-        }
-        if (!this.graphCamera || !this.targetCamera) {
-            this.tmpWorld.set(graphWorldPosition);
-            return this.tmpWorld;
-        }
-
-        this.graphCamera.worldToScreen(graphWorldPosition, this.tmpScreen);
-        this.targetCamera.screenToWorld(this.tmpScreen, this.tmpWorld);
-        return this.tmpWorld;
-    }
-
-    /**
-     * setTargetByWorld。
-     * @param worldPosition worldPosition
-     * @param deltaTime deltaTime
-     * @param forceSnap forceSnap
-     */
-    private setTargetByWorld(worldPosition: Vec3, deltaTime: number, forceSnap: boolean) {
-        const parent = this.followTarget.parent;
-        if (parent) {
-            parent.inverseTransformPoint(this.tmpLocal, worldPosition);
-        } else {
-            this.tmpLocal.set(worldPosition);
-        }
-
-        this.tmpFollowTargetLocal.set(
-            this.tmpLocal.x + this.targetOffset.x,
-            this.tmpLocal.y + this.targetOffset.y,
-            this.tmpLocal.z + this.targetOffset.z
-        );
-
-        const shouldSnap = forceSnap || !this.smoothTargetPosition;
-        if (shouldSnap) {
-            this.followTarget.setPosition(this.tmpFollowTargetLocal);
-            return;
-        }
-
-        const dt = deltaTime > 0 ? deltaTime : (1 / 60);
-        const speed = Math.max(0, this.targetPositionFollowSpeed);
-        const t = speed > 0 ? (1 - Math.exp(-speed * dt)) : 1;
-
-        const current = this.followTarget.position;
-        const desiredX = current.x + (this.tmpFollowTargetLocal.x - current.x) * t;
-        const desiredY = current.y + (this.tmpFollowTargetLocal.y - current.y) * t;
-        const desiredZ = current.z + (this.tmpFollowTargetLocal.z - current.z) * t;
-
-        const stepX = desiredX - current.x;
-        const stepY = desiredY - current.y;
-        const stepZ = desiredZ - current.z;
-        const stepDist = Math.sqrt(stepX * stepX + stepY * stepY + stepZ * stepZ);
-        const maxStep = Math.max(0, this.targetMaxMoveSpeed) * dt;
-
-        if (stepDist <= 0.000001 || maxStep <= 0 || stepDist <= maxStep) {
-            this.followTarget.setPosition(desiredX, desiredY, desiredZ);
-            return;
-        }
-
-        const ratio = maxStep / stepDist;
-        this.followTarget.setPosition(
-            current.x + stepX * ratio,
-            current.y + stepY * ratio,
-            current.z + stepZ * ratio
-        );
     }
 
     /** getProgressPoint。 */
