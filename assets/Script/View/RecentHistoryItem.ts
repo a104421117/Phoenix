@@ -37,7 +37,7 @@ export class RecentHistoryItem extends NodeSwitcher {
         }
         this.switch(this.index);
         if (this.index in MultipleHistoryColor) {
-            const multipleHistoryStr = BaseModel.getRoundToStr(multipleHistory, 2);
+            const multipleHistoryStr = BaseModel.getFloorStr(multipleHistory, 2);
             this.multipleHistoryLabels[this.index].string = multipleHistoryStr;
         }
     }

@@ -1,8 +1,7 @@
-﻿import { _decorator, Component, warn } from 'cc';
+import { _decorator, Component, warn } from 'cc';
 import { NumberSelector } from '../../Game.Client.Common/NumberSelector';
 import { GameData } from '../Model/GameData';
-import { GmaeModel } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
+import { GmaeModel } from '../Model/GameData';
 import { GameController } from '../Controller/GameController';
 const { ccclass, property } = _decorator;
 
@@ -19,14 +18,14 @@ export class GameSettingView extends Component {
         this.resolveBetSelector();
 
         this.gameData = GameData.getInstance();
-        EventManager.getInstance().gameState.on(GmaeModel.BetOptions, this.setBetOptions, this);
+        GameData.getInstance().onGameState(GmaeModel.BetLevels, this.setBetLevels, this);
         this.betSelector?.addValueChangedListener(this.onBetSelectorChanged, this);
-        this.setBetOptions(this.gameData.BetOptions);
+        this.setBetLevels(this.gameData.BetLevels);
         this.syncSelectedBetUnits();
     }
 
     protected onDestroy(): void {
-        EventManager.getInstance().gameState.off(GmaeModel.BetOptions, this.setBetOptions, this);
+        GameData.getInstance().offGameState(GmaeModel.BetLevels, this.setBetLevels, this);
         if (this.betSelector?.isValid) {
             this.betSelector.removeValueChangedListener(this.onBetSelectorChanged, this);
         }
@@ -42,9 +41,9 @@ export class GameSettingView extends Component {
     }
 
     /** 設定投注選項 */
-    private setBetOptions(betOptions: number[]) {
+    private setBetLevels(betLevels: number[]) {
         if (!this.betSelector) return;
-        this.betSelector.Values = betOptions ?? [];
+        this.betSelector.Values = betLevels ?? [];
         this.syncSelectedBetUnits();
     }
 

@@ -1,124 +1,129 @@
+import { BUILD } from 'cc/env';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
-import { EventManager } from '../Model/EventManager';
 import { GameData } from '../Model/GameData';
+import {
+    decodeBalance,
+    decodeBetLevels,
+    decodeExistingBets,
+    decodeMultiplier,
+    decodeMultiplierCurve,
+    encodeAutoCashoutMultiplier,
+    encodeMoney,
+} from '../Model/WebsocketSerializer';
+import {
+    encodeCrashBet,
+    encodeCrashCashout,
+    encodeGameInit,
+    encodeRoomJoin,
+    encodeRoomLeave,
+    encodeRoomList,
+    encodeWalletBalance,
+} from '../Model/WebsocketModel';
+import {
+    WebSocketManager,
+    type BalanceResponse,
+    type CrashBetItemContract,
+    type CrashBetPayload,
+    type CrashBetRequestItem,
+    type CrashCashoutPayload,
+    type CrashHistoryDistributionItemContract,
+    type CrashHistoryPayload,
+    type CrashInitPayload,
+    type CrashLeaderboardItemContract,
+    type CrashRoundEndedPush,
+    type CrashRoundHistoryContract,
+    type CrashRoundStartedPush,
+    type CrashRoundStatePush,
+    type GameInitResponse,
+    type JoinRoomResponse,
+    type LeaveRoomResponse,
+    type RoomListResponse,
+} from '../Model/WebSocketManager';
 import {
     ExistingBet,
     ExistingBetStatus,
     GameErrorPrompt,
     GmaeModel,
-    LeaderboardItem,
-    MultiplierCurvePoint,
-} from '../Model/GameModel';
-import {
-    CrashAction,
-    CrashBetItemContract,
-    CrashBetPayload,
-    CrashBetPlacedPush,
-    CrashCashoutDonePush,
-    CrashCashoutItemContract,
-    CrashCashoutPayload,
-    CrashHistoryDistributionItemContract,
-    CrashHistoryPayload,
-    CrashInitBalanceContract,
-    CrashRoundEndedPush,
-    CrashRoundHistoryContract,
-    CrashRoundStartedPush,
-    CrashRoundStatePush,
-    GameInit,
-    RoomJoinResponse,
-    RoomLeaveResponse,
-    RoomList,
-    ServerOpGameAction,
-} from '../Model/WebsocketModel';
+    RoundState,
+} from '../Model/GameData';
 
 type RoundHistoryUpdateSource = 'sync' | 'push';
 
 /**
  * 全域業務邏輯層（Singleton，永久存活）：
- *   - 訂閱 gameState 上的 Server* 事件，將 server payload 翻譯成 GameData 狀態變更
- *   - 對外提供玩家動作（sendBet / sendCashout / selectBetUnits / ...）
+ *   - 連線完成後透過 WebSocketManager.on 訂閱 server pushes，將 payload 翻譯成 GameData 狀態變更
+ *   - 對外提供玩家動作（sendBet / sendCashout / selectBetUnits / ...），request 會回 Promise 並在 resolve 後同步更新 gameState
  *   - 透過 update* helper 寫入 GameData 後 emit gameState 通知 view
  *   - 自身不持有遊戲資料；GameData 是純 get/set，無 emit 無 cascade
  */
 export class GameController extends BaseModel.Singleton {
-    private pendingBetUnits: number = 0;
+    /** server runningElapsed 從毫秒轉成秒的縮放係數。 */
+    private static readonly RUNNING_ELAPSED_SCALE = 0.001;
 
-    constructor() {
-        super();
-        this.bindGameStateServerEvents();
+    private pendingBetUnits: number = 0;
+    private serverPushBound = false;
+
+    /**
+     * 建立 WebSocketManager 連線後直接訂閱 server pushes。
+     *   - wsUrl / token：BUILD 模式從 window.GAME_CONFIG，dev 從 GameData
+     *   - 失敗時直接 throw，讓 caller（LoadSceneManager 等）自己決定 UX（重試 / 顯示錯誤）
+     */
+    public async connect(): Promise<void> {
+        if (WebSocketManager.getInstance().IsConnected) return;
+        const config = this.resolveWsConfig();
+        if (!config) throw new Error('[GameController] WS config not available');
+        await WebSocketManager.getInstance().connect(config.wsUrl, config.token);
+        this.bindServerPushes();
     }
 
-    private bindGameStateServerEvents() {
-        const bus = EventManager.getInstance().gameState;
-        bus.on(GmaeModel.ServerRoomList, this.onRoomListPush, this);
-        bus.on(GmaeModel.ServerRoomLeave, this.onRoomLeavePush, this);
-        bus.on(GmaeModel.ServerRoomJoin, this.onRoomJoinPush, this);
-        bus.on(GmaeModel.ServerRoomRoundStarted, this.onRoomRoundStartedPush, this);
-        bus.on(GmaeModel.ServerRoomRoundState, this.onRoomRoundStatePush, this);
-        bus.on(GmaeModel.ServerRoomRoundEnded, this.onRoomRoundEndedPush, this);
-        bus.on(GmaeModel.ServerRoomBetPlaced, this.onRoomBetPlacedPush, this);
-        bus.on(GmaeModel.ServerRoomCashoutDone, this.onRoomCashoutDonePush, this);
-        bus.on(GmaeModel.ServerGameInit, this.onGameInitPush, this);
-        bus.on(GmaeModel.ServerGameBalance, this.onGameBalancePush, this);
-        bus.on(GmaeModel.ServerGameAction, this.onGameActionPush, this);
+    /** 訂閱所有 server push opcodes；request 的回應由各 send* 方法直接 await 處理，不走這條路徑。 */
+    private bindServerPushes() {
+        if (this.serverPushBound) return;
+        const socket = WebSocketManager.getInstance();
+        socket.onCrashState(this.applyRoundStateByEnum, this);
+        socket.onCrashRoundHistory((payload) => this.handleRoundHistory(payload, 'push'), this);
+        socket.onRoomRoundState(this.onRoomRoundStatePush, this);
+        socket.onRoomRoundStarted(this.onRoomRoundStartedPush, this);
+        socket.onRoomRoundEnded(this.onRoomRoundEndedPush, this);
+        this.serverPushBound = true;
+    }
+
+    private resolveWsConfig(): { wsUrl: string; token: string } | null {
+        if (BUILD && typeof window !== 'undefined') {
+            const config = (window as any).GAME_CONFIG ?? {};
+            const wsUrl = typeof config.wsUrl === 'string' ? config.wsUrl.trim() : '';
+            const token = typeof config.token === 'string' ? config.token.trim() : '';
+            if (!wsUrl || !token) {
+                console.error('[GameController] BUILD mode requires window.GAME_CONFIG.wsUrl and window.GAME_CONFIG.token');
+                return null;
+            }
+            return { wsUrl, token };
+        }
+        const gameData = GameData.getInstance();
+        return { wsUrl: gameData.FallbackWsUrl, token: gameData.DevToken };
     }
 
     /* ===== Server* push handlers ===== */
 
-    private onRoomListPush(data: RoomList) {
-        EventManager.getInstance().gameState.emit(GmaeModel.Rooms, data);
-    }
-
-    private onRoomLeavePush(data: RoomLeaveResponse) {
-        if (data.roomId === GameData.getInstance().RoomId) {
-            this.updateRoomId('');
-        }
-        if (Array.isArray(data?.rooms)) {
-            EventManager.getInstance().gameState.emit(GmaeModel.Rooms, { rooms: data.rooms });
-        }
-    }
-
-    private onRoomJoinPush(data: RoomJoinResponse) {
-        const gameData = GameData.getInstance();
-        this.updateRoomId(data.roomId);
-        this.updatePlayerId(data.playerId);
-        const init = data.gameState;
-        const hasGameState = init !== null && init !== undefined;
-        if (init) {
-            this.applyCurrencyScale(init.currencyScale);
-            this.updateBetOptions(this.normalizeBetOptions(init.betOptions));
-            this.updateMaxBetCount(init.maxBetsPerPlayer ?? init.betOptions?.length ?? 0);
-            this.applyExistingBets(init.existingBets);
-            this.applyMultiplierCurve(init.multiplierCurve);
-        } else {
-            this.applyExistingBets([]);
-            this.applyMultiplierCurve([]);
-        }
-        const balance = init?.balance ?? data.balance;
-        const hasBalance = this.applyBalanceUnits(balance);
-        if (hasBalance && gameData.Balance < 1) {
-            this.showError(GameErrorPrompt.InsufficientBalanceWithPeriod);
-        }
-        gameData.RoomJoinHasGameState = hasGameState;
-        gameData.RoomJoinHasBalance = hasBalance;
-        const roundHistory = init?.roundHistory ?? data.roundHistory;
-        this.handleRoundHistory(roundHistory ?? [], 'sync');
-        EventManager.getInstance().gameState.emit(GmaeModel.RoomJoined, data);
-    }
 
     private onRoomRoundStatePush(data: CrashRoundStatePush) {
-        switch (data.state) {
-            case 'Betting':
+        const state = String(data.state ?? '').toLowerCase();
+        switch (state) {
+            case 'betting':
                 this.handleBetting(data.bettingCountdown ?? 0);
                 break;
-            case 'Running':
+            case 'running':
                 this.handleRunning(data.currentMultiplier ?? 1, data.runningElapsed ?? undefined);
                 break;
-            case 'Crashed':
-                this.handleCrashed(data.crashPoint ?? 0, data.crashedCountdown ?? 0, data.runningElapsed ?? undefined);
+            case 'crashed':
+                this.handleCrashed(
+                    data.crashPoint ?? 0,
+                    data.crashedCountdown ?? 0,
+                    data.runningElapsed ?? undefined,
+                );
                 break;
         }
-        if (GameData.getInstance().RoundState !== 'Settled') {
+        if (GameData.getInstance().RoundState !== RoundState.Settled) {
             this.handleLeaderboard(data.leaderboard);
         }
     }
@@ -127,60 +132,14 @@ export class GameController extends BaseModel.Singleton {
         this.onRoomRoundStatePush({ ...data, leaderboard: null });
     }
 
-    private onRoomRoundEndedPush(_data: CrashRoundEndedPush) {
+    private onRoomRoundEndedPush(data: CrashRoundEndedPush) {
+        const state = String(data.state ?? '').toLowerCase();
+        if (state === 'crashed') {
+            this.handleCrashed(data.crashPoint ?? 0, 0);
+            return;
+        }
+
         this.handleSettled();
-    }
-
-    private onRoomBetPlacedPush(data: CrashBetPlacedPush) {
-        this.handleCrashBet(data);
-    }
-
-    private onRoomCashoutDonePush(data: CrashCashoutDonePush) {
-        this.handleCashout(data);
-    }
-
-    private onGameInitPush(data: GameInit) {
-        this.updateRoomId(data.roomId);
-        const init = data?.gameState;
-        if (!init) return;
-        this.applyCurrencyScale(init.currencyScale);
-        this.updateBetOptions(this.normalizeBetOptions(init.betOptions ?? []));
-        this.updateMaxBetCount(init.maxBetsPerPlayer ?? init.betOptions?.length ?? 0);
-        this.applyExistingBets(init.existingBets);
-        this.applyMultiplierCurve(init.multiplierCurve);
-        if (this.applyBalanceUnits(init.balance) && GameData.getInstance().Balance < 1) {
-            this.showError(GameErrorPrompt.InsufficientBalanceWithPeriod);
-        }
-        if (init.roundHistory !== null && init.roundHistory !== undefined) {
-            this.handleRoundHistory(init.roundHistory, 'sync');
-        }
-    }
-
-    private onGameBalancePush(data: CrashInitBalanceContract) {
-        this.applyBalanceUnits(data);
-    }
-
-    private onGameActionPush(data: ServerOpGameAction) {
-        switch (data.method) {
-            case CrashAction.Bet:
-                this.handleCrashBet(data.payload ?? data);
-                break;
-            case CrashAction.Cashout:
-                this.handleCashout(data.payload ?? data);
-                break;
-            case CrashAction.State:
-                this.applyRoundStateByEnum(data.payload ?? data);
-                break;
-            case CrashAction.Reconnect:
-                this.handleReconnect(data.payload ?? data);
-                break;
-            case CrashAction.RoundHistory:
-                this.handleRoundHistory(data.payload, 'push');
-                break;
-            case CrashAction.Bets:
-                this.handleCrashBets(data.payload ?? data);
-                break;
-        }
     }
 
     /* ===== State change handlers ===== */
@@ -188,92 +147,89 @@ export class GameController extends BaseModel.Singleton {
     private handleBetting(bettingCountdown: number) {
         const gameData = GameData.getInstance();
         const state = gameData.RoundState;
-        if (state === 'Running' || state === 'Crashed' || state === 'Settled') {
+        if (state === RoundState.Running || state === RoundState.Crashed || state === RoundState.Settled) {
             this.updateExistingBets([]);
         }
         this.pendingBetUnits = 0;
-        gameData.RoundState = 'Betting';
+        gameData.RoundState = RoundState.Betting;
         this.updateRunningElapsed(0);
-        EventManager.getInstance().gameState.emit(GmaeModel.BettingCountdown, bettingCountdown);
+        this.updateMultiplier(1);
+        GameData.getInstance().emitGameState(GmaeModel.BettingCountdown, bettingCountdown);
         gameData.IsCrashed = false;
         gameData.BetIndex = this.getNextBetIndex();
     }
 
-    private handleRunning(currentMultiplier: number, runningElapsed?: number) {
+    private handleRunning(currentMultiplier: number | string, runningElapsed?: number) {
         const gameData = GameData.getInstance();
-        if (gameData.RoundState === 'Settled') return;
-        gameData.RoundState = 'Running';
-        if (Number.isFinite(runningElapsed)) {
-            this.updateRunningElapsed(Math.max(0, runningElapsed!));
+        if (gameData.RoundState === RoundState.Settled) return;
+        gameData.RoundState = RoundState.Running;
+        const elapsed = Number(runningElapsed);
+        if (Number.isFinite(elapsed)) {
+            this.updateRunningElapsed(Math.max(0, elapsed));
         }
-        EventManager.getInstance().gameState.emit(GmaeModel.Multiplier, currentMultiplier);
+        this.updateMultiplier(Number(currentMultiplier));
     }
 
-    private handleCrashed(crashPoint: number, crashedCountdown: number, runningElapsed?: number) {
+    private handleCrashed(crashPoint: number | string, crashedCountdown: number, runningElapsed?: number) {
         const gameData = GameData.getInstance();
-        if (!Number.isFinite(crashPoint) || crashPoint <= 0) return;
-        if (gameData.RoundState === 'Settled') return;
-        gameData.RoundState = 'Crashed';
-        if (Number.isFinite(runningElapsed)) {
-            this.updateRunningElapsed(Math.max(0, runningElapsed!));
+        const normalizedCrashPoint = Number(crashPoint);
+        if (!Number.isFinite(normalizedCrashPoint) || normalizedCrashPoint <= 0) return;
+        if (gameData.RoundState === RoundState.Settled) return;
+        gameData.RoundState = RoundState.Crashed;
+        const elapsed = Number(runningElapsed);
+        if (Number.isFinite(elapsed)) {
+            this.updateRunningElapsed(Math.max(0, elapsed));
         }
-        EventManager.getInstance().gameState.emit(GmaeModel.CrashedCountdown, crashedCountdown);
+        // 接口層精度校正：crashPoint 走 updateMultiplier 進 model，外部派發也統一用 rounded 值。
+        const roundedCrashPoint = BaseModel.getPrecise(normalizedCrashPoint, 2);
+        this.updateMultiplier(roundedCrashPoint);
+        GameData.getInstance().emitGameState(GmaeModel.CrashedCountdown, crashedCountdown);
         if (!gameData.IsCrashed) {
             gameData.IsCrashed = true;
-            EventManager.getInstance().gameState.emit(GmaeModel.Explode, crashPoint);
+            GameData.getInstance().emitGameState(GmaeModel.Explode, roundedCrashPoint);
         }
     }
 
     private handleSettled() {
         this.pendingBetUnits = 0;
-        GameData.getInstance().RoundState = 'Settled';
+        GameData.getInstance().RoundState = RoundState.Settled;
+        this.updateMultiplier(1);
         this.updateLeaderboard([]);
-        EventManager.getInstance().gameState.emit(GmaeModel.Settled);
+        GameData.getInstance().emitGameState(GmaeModel.Settled);
     }
 
-    private handleCrashBet(payload: CrashBetPayload | CrashBetItemContract | any) {
+    private handleCrashBet(payload: CrashBetPayload) {
+        if (payload.bets.length <= 0) return;
         const gameData = GameData.getInstance();
-        const bets = this.extractCrashBetPayloads(payload);
-        if (bets.length <= 0) return;
-        this.releasePendingBetUnits(bets);
-        bets.forEach((bet) => {
+        this.releasePendingBetUnits(payload.bets);
+        payload.bets.forEach((bet) => {
             gameData.BetIndex = Math.max(gameData.BetIndex, bet.betIndex + 1);
             this.upsertExistingBet({
                 betIndex: bet.betIndex,
-                betAmount: bet.betAmount as unknown as number,
+                betAmount: Number(bet.betAmount),
                 status: ExistingBetStatus.Pending,
-                autoCashoutMultiplier: bet.autoCashoutMultiplier ?? null,
             });
-            EventManager.getInstance().gameState.emit(GmaeModel.CrashBet, bet);
         });
-        this.syncBalanceUnits(payload?.balanceUnits);
+        this.syncBalance(payload.balance);
     }
 
-    private handleCashout(payload: CrashCashoutPayload | CrashCashoutItemContract | any) {
-        const gameData = GameData.getInstance();
-        const cashouts = this.extractCashoutPayloads(payload);
-        const totalPayout = this.parseNullableNum(payload?.totalPayout);
-        if (totalPayout !== null) {
-            EventManager.getInstance().gameState.emit(GmaeModel.CashoutTotalPayout, totalPayout);
-        }
-        if (cashouts.length <= 0) {
-            this.syncBalanceUnits(payload?.balanceUnits);
+    private handleCashout(payload: CrashCashoutPayload) {
+        if (payload.cashouts.length <= 0) {
+            this.syncBalance(payload.balance);
             return;
         }
-        cashouts.forEach((cashout) => {
+        const gameData = GameData.getInstance();
+        payload.cashouts.forEach((cashout) => {
             this.upsertExistingBet({
                 betIndex: cashout.betIndex,
                 betAmount: gameData.ExistingBets.find((b) => b.betIndex === cashout.betIndex)?.betAmount ?? 0,
                 status: ExistingBetStatus.CashedOut,
                 cashoutMultiplier: cashout.cashoutMultiplier,
-                payout: cashout.payout as unknown as number,
-                payoutGross: cashout.payoutGross as unknown as number,
-                serviceFee: cashout.serviceFee as unknown as number,
-                payoutNet: cashout.payoutNet as unknown as number,
+                payoutGross: Number(cashout.payoutGross),
+                payoutNet: Number(cashout.payoutNet),
             });
-            EventManager.getInstance().gameState.emit(GmaeModel.Cashout, cashout);
         });
-        this.syncBalanceUnits(payload?.balanceUnits);
+        this.syncBalance(payload.balance);
     }
 
     private handleRoundHistory(
@@ -288,61 +244,27 @@ export class GameController extends BaseModel.Singleton {
         this.updateRoundHistory(normalizedHistory);
     }
 
-    private handleLeaderboard(rawLeaderboard: any[] | null | undefined) {
+    private handleLeaderboard(rawLeaderboard: CrashLeaderboardItemContract[] | null | undefined) {
         if (!Array.isArray(rawLeaderboard)) return;
-        const sorted = rawLeaderboard
-            .map((item) => this.normalizeLeaderboardItem(item))
-            .filter((item): item is LeaderboardItem => item !== null)
-            .sort((a, b) => a.rank - b.rank);
+        const sorted = [...rawLeaderboard].sort((a, b) => a.rank - b.rank);
         this.updateLeaderboard(sorted);
     }
 
-    private handleCrashBets(payload: any) {
-        if (this.hasBets(payload)) {
-            this.applyExistingBets(this.extractRawBets(payload));
-        }
-        this.handleCashout(payload);
-        this.syncBalanceUnits(payload?.balanceUnits);
-    }
-
-    private handleReconnect(payload: any) {
-        this.applyRoundStateByEnum(payload);
-        if (this.hasBets(payload)) {
-            this.applyExistingBets(this.extractRawBets(payload));
-        }
-        this.handleCashout(payload);
-        this.syncBalanceUnits(payload?.balanceUnits);
-    }
-
-    private applyExistingBets(rawExistingBets: any[] | null | undefined) {
-        const bets = Array.isArray(rawExistingBets)
-            ? rawExistingBets
-                .map((item) => this.normalizeExistingBet(item))
-                .filter((item): item is ExistingBet => item !== null)
-            : [];
-        const sorted = [...bets].sort((a, b) => a.betIndex - b.betIndex);
-        this.updateExistingBets(sorted);
+    private applyExistingBets(rawExistingBets: unknown) {
+        this.updateExistingBets(decodeExistingBets(rawExistingBets));
         GameData.getInstance().BetIndex = this.getNextBetIndex();
     }
 
-    private applyMultiplierCurve(rawMultiplierCurve: any[] | null | undefined) {
-        const curve = Array.isArray(rawMultiplierCurve)
-            ? rawMultiplierCurve
-                .map((item) => ({ t: Number(item?.t), m: Number(item?.m) }))
-                .filter((item) => Number.isFinite(item.t) && Number.isFinite(item.m))
-            : [];
-        this.updateMultiplierCurve(this.normalizeMultiplierCurve(curve));
+    private applyMultiplierCurve(rawMultiplierCurve: unknown) {
+        GameData.getInstance().MultiplierCurve = decodeMultiplierCurve(rawMultiplierCurve);
     }
 
-    private applyBalanceUnits(payload: { balanceUnits?: string | number } | null | undefined): boolean {
-        if (!payload) return false;
-        const balance = Number(payload.balanceUnits);
-        if (!Number.isFinite(balance)) return false;
-        this.updateBalance(balance);
-        return true;
+    private applyBalanceUnits(balance: string | number): void {
+        const scale = GameData.getInstance().CurrencyScale;
+        this.updateWallet(decodeBalance(balance, scale));
     }
 
-    /** 從 server 收到的 currencyScale 寫回 GameData（僅供顯示參考，不再做 scale 轉換）。 */
+    /** 從 server 收到的 currencyScale 寫回 GameData（send 系列 wire 轉換時直接讀 GameData）。 */
     private applyCurrencyScale(scale: number | null | undefined) {
         if (typeof scale !== 'number' || !Number.isInteger(scale) || scale < 0) return;
         GameData.getInstance().CurrencyScale = scale;
@@ -362,43 +284,69 @@ export class GameController extends BaseModel.Singleton {
     }
 
     public sendBets(betUnits: number, count: number, autoCashoutMultiplier: number | null = null): number[] {
-        const gameData = GameData.getInstance();
-        if (!gameData.RoomId) return [];
-        const normalizedBetUnits = Number(betUnits);
-        const normalizedCount = Math.max(0, Math.floor(Number(count) || 0));
-        if (!Number.isFinite(normalizedBetUnits) || normalizedBetUnits <= 0 || normalizedCount <= 0) return [];
-        if (gameData.RoundState !== 'Betting') {
-            this.showError(GameErrorPrompt.RoundRunningWait);
-            return [];
-        }
-        if (this.isBetCountReached()) {
-            this.showError(GameErrorPrompt.MaxBetCountReached);
-            return [];
-        }
+        const validated = this.validateBetRequest(betUnits, count);
+        if (!validated) return [];
 
-        const indexes = this.computeBetIndexes(normalizedBetUnits, normalizedCount);
-        if (indexes.length <= 0) {
-            if (this.isBetCountReached()) {
-                this.showError(GameErrorPrompt.MaxBetCountReached);
-            }
-            return [];
-        }
+        const indexes = this.computeBetIndexes(validated.betUnits, validated.count);
+        if (indexes.length <= 0) return [];
 
-        const requiredBetUnits = normalizedBetUnits * indexes.length;
+        const requiredBetUnits = validated.betUnits * indexes.length;
         if (!this.hasEnoughBalance(requiredBetUnits)) {
             this.showError(GameErrorPrompt.InsufficientBalance);
             return [];
         }
 
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestBet, {
-            instanceId: gameData.RoomId,
-            betUnits: normalizedBetUnits,
-            betIndexes: indexes,
-            autoCashoutMultiplier: this.normalizeAutoCashoutMultiplier(autoCashoutMultiplier),
-        });
-        this.pendingBetUnits += requiredBetUnits;
-        gameData.BetIndex = indexes[indexes.length - 1] + 1;
+        this.dispatchBetRequest(indexes, validated.betUnits, autoCashoutMultiplier);
+        this.reservePendingBet(requiredBetUnits, indexes);
         return indexes;
+    }
+
+    /** 前置驗證：房間、參數、回合狀態、投注上限。錯誤一律走 showError，回 null 表示中止。 */
+    private validateBetRequest(betUnits: number, count: number): { betUnits: number; count: number } | null {
+        const gameData = GameData.getInstance();
+        if (!gameData.RoomId) return null;
+
+        const normalizedBetUnits = Number(betUnits);
+        const normalizedCount = Math.max(0, Math.floor(Number(count) || 0));
+        if (!Number.isFinite(normalizedBetUnits) || normalizedBetUnits <= 0 || normalizedCount <= 0) return null;
+
+        if (gameData.RoundState !== RoundState.Betting) {
+            this.showError(GameErrorPrompt.RoundRunningWait);
+            return null;
+        }
+        if (this.isBetCountReached()) {
+            this.showError(GameErrorPrompt.MaxBetCountReached);
+            return null;
+        }
+        return { betUnits: normalizedBetUnits, count: normalizedCount };
+    }
+
+    /** 組 wire 物件後 fire-and-forget；回應/錯誤分別走 handleCrashBet / console.error。 */
+    private dispatchBetRequest(indexes: number[], betUnits: number, autoCashoutMultiplier: number | null) {
+        const gameData = GameData.getInstance();
+        const scale = gameData.CurrencyScale;
+        const bets = indexes.map((betIndex) => ({
+            betAmount: encodeMoney(betUnits, scale),
+            autoCashoutMultiplier: encodeAutoCashoutMultiplier(autoCashoutMultiplier),
+            betIndex,
+        })) as unknown as CrashBetRequestItem[];
+        WebSocketManager.getInstance()
+            .sendCrashBet(gameData.RoomId, encodeCrashBet(bets, this.generateRequestId('bet')))
+            .then((payload) => this.handleCrashBet(payload))
+            .catch((err) => console.error('[GameController.sendBets] sendCrashBet failed', err));
+    }
+
+    /** Optimistic 鎖定：先扣 pending 額度與推進 BetIndex，等 server 回應再 release / 校正。 */
+    private reservePendingBet(requiredBetUnits: number, indexes: number[]) {
+        this.pendingBetUnits += requiredBetUnits;
+        GameData.getInstance().BetIndex = indexes[indexes.length - 1] + 1;
+    }
+
+    /** 為 client→server 請求產生冪等鍵（server 用來去重）。 */
+    private generateRequestId(prefix: string): string {
+        const rand = globalThis.crypto?.randomUUID?.();
+        if (rand) return `${prefix}-${rand}`;
+        return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     }
 
     public sendCashout(betIndex: number) {
@@ -412,88 +360,131 @@ export class GameController extends BaseModel.Singleton {
             .map((value) => Number(value))
             .filter((value) => Number.isInteger(value) && value >= 0))];
         if (dedupedIndexes.length <= 0) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestCashout, {
-            instanceId: gameData.RoomId,
-            betIndexes: dedupedIndexes,
-        });
+        WebSocketManager.getInstance().sendCrashCashout(gameData.RoomId, encodeCrashCashout(dedupedIndexes))
+            .then((payload) => this.handleCashout(payload))
+            .catch((err) => console.error('[GameController] sendCashout failed', err));
     }
 
-    public sendRoundHistory() {
-        const roomId = GameData.getInstance().RoomId;
-        if (!roomId) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestRoundHistory, { instanceId: roomId });
+    public async roomList(status: string = 'open', limit: number = 50): Promise<RoomListResponse> {
+        const data = await WebSocketManager.getInstance().getRoomList(encodeRoomList(status, limit));
+        this.applyRoomList(data);
+        return data;
     }
 
-    public sendReconnect() {
-        const roomId = GameData.getInstance().RoomId;
-        if (!roomId) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestReconnect, { instanceId: roomId });
+    /** 解構 RoomListResponse 並寫入 GameData。 */
+    private applyRoomList(data: RoomListResponse) {
+        GameData.getInstance().Rooms = data.rooms;
     }
 
-    public sendGameBalance() {
-        const roomId = GameData.getInstance().RoomId;
-        if (!roomId) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestGameBalance, { instanceId: roomId });
+    public async walletBalance(): Promise<BalanceResponse> {
+        const data = await WebSocketManager.getInstance().getWalletBalance(encodeWalletBalance());
+        this.applyCurrencyScale(data.currencyScale);
+        this.applyBalanceUnits(data.balance);
+        return data;
     }
 
-    /** 拉房間列表。 */
-    public requestRoomList() {
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestRoomList);
+    public async gameInit(roomId: string): Promise<GameInitResponse> {
+        const data = await WebSocketManager.getInstance().getGameInit(encodeGameInit(roomId));
+        this.applyGameInit(data);
+        return data;
     }
 
-    /** 加入房間。 */
-    public joinRoom(roomId: string) {
-        if (!roomId) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestJoinRoom, { roomId });
+    /** 解構 GameInitResponse 並寫入 GameData。 */
+    private applyGameInit(data: GameInitResponse) {
+        this.applyGameState(data.gameInit as CrashInitPayload);
     }
 
-    /** 進房後請 server 重送 game.init。 */
-    public sendGameInit(roomId: string) {
-        if (!roomId) return;
-        EventManager.getInstance().gameState.emit(GmaeModel.RequestGameInit, { roomId });
+    /** 加入房間：餘額不足顯示提示並 throw，caller 不會繼續跳場景。 */
+    public async joinRoom(roomId: string): Promise<JoinRoomResponse> {
+        const data = await WebSocketManager.getInstance().getRoomJoin(encodeRoomJoin(roomId));
+        this.applyJoinRoom(data);
+        return data;
     }
 
-    /** 進入 GameScene 時的 bootstrap：依 GameData 狀態補抓缺失的資料。 */
-    public bootstrapGame() {
+    /** 解構 JoinRoomResponse 並寫入 GameData；餘額不足會顯示提示並 throw。 */
+    private applyJoinRoom(data: JoinRoomResponse) {
         const gameData = GameData.getInstance();
-        if (!gameData.RoomId) return;
-        if (!gameData.RoomJoinHasGameState) {
-            this.sendGameInit(gameData.RoomId);
-        } else if (!gameData.RoomJoinHasBalance) {
-            this.sendGameBalance();
+        this.updateRoomId(data.roomId);
+        this.updatePlayerId(data.playerId);
+        const init = data.gameState as CrashInitPayload;
+        this.applyGameState(init);
+        if (!init.wallet) {
+            throw new Error('[GameController.applyJoinRoom] missing wallet info');
         }
-        // crash.reconnect 介面保留但前端暫不呼叫（如需，呼叫 this.sendReconnect()）。
+        this.applyBalanceUnits(init.wallet.balance);
+        if (gameData.Wallet < 1) {
+            this.showError(GameErrorPrompt.InsufficientBalanceWithPeriod);
+            throw new Error('[GameController.joinRoom] insufficient balance');
+        }
+        this.handleRoundHistory(init.roundHistory, 'sync');
     }
+
+    /** 解構 CrashInitPayload（join / gameInit response 內的 gameState 巢狀物件）並寫進 GameData。 */
+    private applyGameState(init: CrashInitPayload) {
+        this.applyCurrencyScale(init.currencyScale);
+        const betLevels = decodeBetLevels(init.betLevels);
+        this.updateBetLevels(betLevels);
+        this.updateMaxBetCount(init.maxBetsPerPlayer ?? betLevels.length);
+        this.applyExistingBets(init.existingBets);
+        this.applyMultiplierCurve(init.multiplierCurve);
+    }
+
 
     public canLeaveRoom(): boolean {
         if (!this.hasActiveBet()) {
             return true;
         }
 
-        const roundState = GameData.getInstance().RoundState;
-        this.showError(roundState === 'Running' || roundState === 'Crashed'
+        const state = GameData.getInstance().RoundState;
+        this.showError(state === RoundState.Running || state === RoundState.Crashed
             ? GameErrorPrompt.LeaveWhileSettling
             : GameErrorPrompt.LeaveWithActiveBet);
         return false;
     }
 
-    public leaveRoom() {
+    public async leaveRoom(): Promise<LeaveRoomResponse | void> {
         const roomId = GameData.getInstance().RoomId;
-        this.updateRoomId('');
-        if (roomId) {
-            EventManager.getInstance().gameState.emit(GmaeModel.RequestLeaveRoom, { roomId });
-        }
+        if (!roomId) return;
+        const data = await WebSocketManager.getInstance().getRoomLeave(encodeRoomLeave(roomId));
+        this.applyLeaveRoom(data);
+        return data;
+    }
+
+    /** 解構 LeaveRoomResponse 並寫入 GameData，順手清掉房間相關狀態。 */
+    private applyLeaveRoom(data: LeaveRoomResponse) {
+        GameData.getInstance().Rooms = data.rooms;
+        this.clearRoomState();
+    }
+
+    /** 離房時清掉所有「房間特定」狀態，跨房保留的（Wallet / PlayerId / Rooms / SelectedBetUnits / CurrencyScale）不動。 */
+    private clearRoomState() {
+        const gameData = GameData.getInstance();
+        gameData.RoomId = '';
+        gameData.ExistingBets = [];
+        gameData.BetLevels = [];
+        gameData.MaxBetCount = 0;
+        gameData.RoundHistory = [];
+        gameData.RoundHistoryDistribution = [];
+        gameData.HistoryMaxCrashPoint = null;
+        gameData.TodayMaxCrashPoint = null;
+        gameData.Multiplier = 1;
+        gameData.RunningElapsed = 0;
+        gameData.RoundState = RoundState.None;
+        gameData.IsCrashed = false;
+        gameData.MultiplierCurve = [];
+        gameData.BetIndex = 0;
+        gameData.Leaderboard = [];
     }
 
     /** view 端選注額：驗證後寫入 GameData。 */
     public selectBetUnits(value: number) {
         const gameData = GameData.getInstance();
         if (!Number.isFinite(value) || value <= 0) {
-            gameData.SelectedBetUnits = gameData.BetOptions.length > 0 ? gameData.BetOptions[0] : 0;
+            gameData.SelectedBetUnits = gameData.BetLevels.length > 0 ? gameData.BetLevels[0] : 0;
             return;
         }
-        if (gameData.BetOptions.length > 0 && gameData.BetOptions.indexOf(value) < 0) {
-            gameData.SelectedBetUnits = gameData.BetOptions[0];
+        if (gameData.BetLevels.length > 0 && gameData.BetLevels.indexOf(value) < 0) {
+            gameData.SelectedBetUnits = gameData.BetLevels[0];
             return;
         }
         gameData.SelectedBetUnits = value;
@@ -502,69 +493,65 @@ export class GameController extends BaseModel.Singleton {
     /* ===== Update helpers（寫入 GameData + emit gameState 通知 view）===== */
 
     private updateRoomId(value: string) {
-        const gameData = GameData.getInstance();
-        gameData.RoomId = value;
-        if (!value) {
-            gameData.RoomJoinHasGameState = false;
-            gameData.RoomJoinHasBalance = false;
-        }
+        GameData.getInstance().RoomId = value;
     }
 
-    private updatePlayerId(value: string) {
-        GameData.getInstance().PlayerId = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.PlayerId, value);
+    private updatePlayerId(value: string | null | undefined) {
+        GameData.getInstance().PlayerId = value ?? '';
     }
 
-    private updateBalance(value: number) {
-        GameData.getInstance().Balance = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.Balance, value);
+    private updateWallet(value: number) {
+        GameData.getInstance().Wallet = value;
     }
 
-    private updateLeaderboard(value: LeaderboardItem[]) {
+    private updateLeaderboard(value: CrashLeaderboardItemContract[]) {
         GameData.getInstance().Leaderboard = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.Leaderboard, [...value]);
+        GameData.getInstance().emitGameState(GmaeModel.Leaderboard, [...value]);
     }
 
-    private updateBetOptions(value: number[]) {
+    private updateBetLevels(value: number[]) {
         const gameData = GameData.getInstance();
-        gameData.BetOptions = value;
+        gameData.BetLevels = value;
         if (value.length <= 0) {
             gameData.SelectedBetUnits = 0;
         } else if (value.indexOf(gameData.SelectedBetUnits) < 0) {
             gameData.SelectedBetUnits = value[0];
         }
-        EventManager.getInstance().gameState.emit(GmaeModel.BetOptions, [...value]);
     }
 
     private updateMaxBetCount(value: number) {
         GameData.getInstance().MaxBetCount = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.MaxBetCount, value);
     }
 
     private updateRoundHistory(value: number[]) {
         GameData.getInstance().RoundHistory = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.RoundHistory, value);
+        GameData.getInstance().emitGameState(GmaeModel.RoundHistory, value);
     }
 
     private updateExistingBets(value: ExistingBet[]) {
         GameData.getInstance().ExistingBets = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.ExistingBets, [...value]);
+        GameData.getInstance().emitGameState(GmaeModel.ExistingBets, value);
     }
 
-    private updateMultiplierCurve(value: MultiplierCurvePoint[]) {
-        GameData.getInstance().MultiplierCurve = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.MultiplierCurve, [...value]);
+    /** normalize 後寫 GameData.Multiplier + 廣播；非法值（NaN / <=0）統一變成 1。 */
+    private updateMultiplier(value: number) {
+        // 接口層精度處理：倍數最多 2 位小數，這裡 round 一次清掉浮點誤差，View 直接用顯示。
+        const normalized = Number.isFinite(value) && value > 0 ? BaseModel.getPrecise(value, 2) : 1;
+        GameData.getInstance().Multiplier = normalized;
+        GameData.getInstance().emitGameState(GmaeModel.Multiplier, normalized);
     }
 
     private updateRunningElapsed(value: number) {
-        GameData.getInstance().RunningElapsed = value;
-        EventManager.getInstance().gameState.emit(GmaeModel.RunningElapsed, value);
+        // server runningElapsed 是毫秒，這裡轉成秒後存進 GameData 並廣播；下游一律拿秒數。
+        const seconds = value * GameController.RUNNING_ELAPSED_SCALE;
+        GameData.getInstance().RunningElapsed = seconds;
+        GameData.getInstance().emitGameState(GmaeModel.RunningElapsed, seconds);
     }
 
     /* ===== Private helpers ===== */
 
     private showError(message: GameErrorPrompt | string) {
-        EventManager.getInstance().gameState.emit(GmaeModel.ShowError, { message });
+        GameData.getInstance().emitGameState(GmaeModel.ShowError, { message });
     }
 
     private hasEnoughBalance(requiredBetUnits: number): boolean {
@@ -574,15 +561,15 @@ export class GameController extends BaseModel.Singleton {
     }
 
     private getAvailableBetBalance(): number {
-        const balance = Number(GameData.getInstance().Balance);
+        const balance = Number(GameData.getInstance().Wallet);
         if (!Number.isFinite(balance)) return 0;
         return Math.max(0, balance - this.pendingBetUnits);
     }
 
     private releasePendingBetUnits(bets: CrashBetItemContract[]) {
         const confirmedBetUnits = bets.reduce((sum, bet) => {
-            const betAmount = Number(bet?.betAmount);
-            return Number.isFinite(betAmount) && betAmount > 0 ? sum + betAmount : sum;
+            const amount = Number(bet.betAmount);
+            return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
         }, 0);
         this.pendingBetUnits = Math.max(0, this.pendingBetUnits - confirmedBetUnits);
     }
@@ -597,11 +584,10 @@ export class GameController extends BaseModel.Singleton {
     }
 
     private isActiveBet(bet: ExistingBet): boolean {
-        const status = bet?.status ?? ExistingBetStatus.Pending;
-        return status !== ExistingBetStatus.CashedOut
-            && status !== ExistingBetStatus.CashoutPending
-            && status !== ExistingBetStatus.Lost
-            && typeof bet?.cashoutMultiplier !== 'number';
+        return bet.status !== ExistingBetStatus.CashedOut
+            && bet.status !== ExistingBetStatus.CashoutPending
+            && bet.status !== ExistingBetStatus.Lost
+            && bet.cashoutMultiplier === null;
     }
 
     private computeBetIndexes(betUnits: number, count: number): number[] {
@@ -624,23 +610,9 @@ export class GameController extends BaseModel.Singleton {
     private resolveSelectedBetUnits(): number {
         const gameData = GameData.getInstance();
         if (gameData.SelectedBetUnits > 0) return gameData.SelectedBetUnits;
-        const options = gameData.BetOptions;
+        const options = gameData.BetLevels;
         if (options.length > 0) return options[0];
         return 0;
-    }
-
-    private normalizeAutoCashoutMultiplier(value: number | null | undefined): number | null {
-        const multiplier = Number(value);
-        if (!Number.isFinite(multiplier) || multiplier <= 1) return null;
-        return Math.round(multiplier * 100) / 100;
-    }
-
-    private normalizeBetOptions(betOptions: any): number[] {
-        return Array.isArray(betOptions)
-            ? betOptions
-                .map((value) => Number(value))
-                .filter((value) => Number.isFinite(value) && value > 0)
-            : [];
     }
 
     private getNextBetIndex(): number {
@@ -649,13 +621,23 @@ export class GameController extends BaseModel.Singleton {
         return Math.max(...bets.map((b) => b.betIndex)) + 1;
     }
 
-    private upsertExistingBet(next: ExistingBet) {
-        if (typeof next?.betIndex !== 'number') return;
+    /** 部分欄位 patch：betIndex 必填當 identity，其他欄位省略表示「不變」；首次寫入時缺的欄位用預設值補齊。 */
+    private upsertExistingBet(next: Partial<ExistingBet> & { betIndex: number }) {
+        if (typeof next.betIndex !== 'number') return;
         const gameData = GameData.getInstance();
         const list = gameData.ExistingBets;
         const idx = list.findIndex((b) => b.betIndex === next.betIndex);
         if (idx < 0) {
-            const updated = [...list, next].sort((a, b) => a.betIndex - b.betIndex);
+            const created: ExistingBet = {
+                betIndex: next.betIndex,
+                betAmount: next.betAmount ?? 0,
+                status: next.status ?? ExistingBetStatus.Pending,
+                cashoutMultiplier: next.cashoutMultiplier ?? null,
+                payoutGross: next.payoutGross ?? null,
+                payoutNet: next.payoutNet ?? null,
+                currentProfit: next.currentProfit ?? null,
+            };
+            const updated = [...list, created].sort((a, b) => a.betIndex - b.betIndex);
             this.updateExistingBets(updated);
             gameData.BetIndex = this.getNextBetIndex();
             return;
@@ -670,75 +652,6 @@ export class GameController extends BaseModel.Singleton {
         updated[idx] = merged;
         this.updateExistingBets(updated);
         gameData.BetIndex = this.getNextBetIndex();
-    }
-
-    private extractRawBets(payload: any): any[] {
-        if (Array.isArray(payload)) return payload;
-        if (Array.isArray(payload?.existingBets)) return payload.existingBets;
-        if (Array.isArray(payload?.bets)) return payload.bets;
-        if (Array.isArray(payload?.items)) return payload.items;
-        return [];
-    }
-
-    private hasBets(payload: any): boolean {
-        return Array.isArray(payload)
-            || Array.isArray(payload?.existingBets)
-            || Array.isArray(payload?.bets)
-            || Array.isArray(payload?.items);
-    }
-
-    private extractCrashBetPayloads(payload: any): CrashBetItemContract[] {
-        const rawBets = Array.isArray(payload?.bets)
-            ? payload.bets
-            : (Array.isArray(payload) ? payload : [payload]);
-        return rawBets
-            .map((raw: any) => this.normalizeCrashBetPayload(raw))
-            .filter((item: any): item is CrashBetItemContract => item !== null);
-    }
-
-    private extractCashoutPayloads(payload: any): CrashCashoutItemContract[] {
-        const rawCashouts = Array.isArray(payload?.cashouts)
-            ? payload.cashouts
-            : (Array.isArray(payload) ? payload : [payload]);
-        return rawCashouts
-            .map((raw: any) => this.normalizeCashoutPayload(raw))
-            .filter((item: any): item is CrashCashoutItemContract => item !== null);
-    }
-
-    private normalizeCrashBetPayload(raw: any): CrashBetItemContract | null {
-        const betIndex = Number(raw?.betIndex ?? raw?.betSeq);
-        const betAmount = Number(raw?.betAmount ?? raw?.betUnits);
-        if (!Number.isInteger(betIndex) || !Number.isFinite(betAmount)) return null;
-        return {
-            betIndex,
-            betAmount: betAmount as unknown as CrashBetItemContract['betAmount'],
-            autoCashoutMultiplier: this.parseNullableNum(raw?.autoCashoutMultiplier),
-        };
-    }
-
-    private normalizeCashoutPayload(raw: any): CrashCashoutItemContract | null {
-        const betIndex = Number(raw?.betIndex);
-        const cashoutMultiplier = Number(raw?.cashoutMultiplier);
-        const payoutGross = Number(raw?.payoutGross);
-        const serviceFee = Number(raw?.serviceFee);
-        const payoutNet = Number(raw?.payoutNet);
-        if (
-            !Number.isInteger(betIndex)
-            || !Number.isFinite(cashoutMultiplier)
-            || !Number.isFinite(payoutGross)
-            || !Number.isFinite(serviceFee)
-            || !Number.isFinite(payoutNet)
-        ) return null;
-        const payout = this.parseNullableNum(raw?.payout) ?? 0;
-        type Money = CrashCashoutItemContract['payoutGross'];
-        return {
-            betIndex,
-            cashoutMultiplier,
-            payoutGross: payoutGross as unknown as Money,
-            serviceFee: serviceFee as unknown as Money,
-            payoutNet: payoutNet as unknown as Money,
-            payout: payout as unknown as Money,
-        };
     }
 
     private applyRoundStateByEnum(payload: any) {
@@ -777,17 +690,11 @@ export class GameController extends BaseModel.Singleton {
         }
     }
 
-    private syncBalanceUnits(balanceUnits?: number | string) {
-        if (balanceUnits === null || balanceUnits === undefined) return;
-        const nextBalance = typeof balanceUnits === 'number' ? balanceUnits : Number(balanceUnits);
+    private syncBalance(balance?: number | string) {
+        if (balance === null || balance === undefined) return;
+        const nextBalance = typeof balance === 'number' ? balance : Number(balance);
         if (!Number.isFinite(nextBalance)) return;
-        this.updateBalance(nextBalance);
-    }
-
-    private parseNullableNum(value: any): number | null {
-        if (value === null || value === undefined) return null;
-        const n = Number(value);
-        return Number.isFinite(n) ? n : null;
+        this.updateWallet(nextBalance);
     }
 
     private isSameRoundHistory(left: number[], right: number[]): boolean {
@@ -802,9 +709,11 @@ export class GameController extends BaseModel.Singleton {
     }
 
     private normalizeRoundHistory(payload: any): number[] {
+        // 接口層 multiplier 精度校正：crashPoint 是倍數，這裡 round 到 2 位小數清掉浮點誤差。
         const asNumbers = (list: any[]): number[] => list
             .map((item) => Number(item))
-            .filter((item) => Number.isFinite(item) && item > 0);
+            .filter((item) => Number.isFinite(item) && item > 0)
+            .map((item) => BaseModel.getPrecise(item, 2));
 
         if (Array.isArray(payload) && payload.every((item) => Number.isFinite(Number(item)))) return asNumbers(payload);
 
@@ -818,7 +727,8 @@ export class GameController extends BaseModel.Singleton {
                 : (Array.isArray(payload) ? payload : []));
         return rawItems
             .map((item: any) => Number(item?.crashPoint))
-            .filter((item: number) => Number.isFinite(item) && item > 0);
+            .filter((item: number) => Number.isFinite(item) && item > 0)
+            .map((item: number) => BaseModel.getPrecise(item, 2));
     }
 
     private applyRoundHistorySummary(payload: any, history: number[]) {
@@ -828,10 +738,10 @@ export class GameController extends BaseModel.Singleton {
             ? parsedDistribution
             : this.buildDefaultRoundHistoryDistribution(history);
 
-        const historyMax = this.parseNullableNum(payload?.historyMaxCrashPoint);
+        const historyMax = decodeMultiplier(payload?.historyMaxCrashPoint);
         gameData.HistoryMaxCrashPoint = historyMax ?? this.getMaxValue(history);
 
-        const todayMax = this.parseNullableNum(payload?.todayMaxCrashPoint);
+        const todayMax = decodeMultiplier(payload?.todayMaxCrashPoint);
         gameData.TodayMaxCrashPoint = todayMax ?? this.getMaxValue(history);
     }
 
@@ -875,65 +785,4 @@ export class GameController extends BaseModel.Singleton {
         return Number.isFinite(max) ? max : null;
     }
 
-    private normalizeExistingBet(raw: any): ExistingBet | null {
-        const betIndex = Number(raw?.betIndex);
-        const betAmount = Number(raw?.betAmount);
-        if (!Number.isInteger(betIndex) || !Number.isFinite(betAmount)) return null;
-        const parseNum = (v: any): number | null => {
-            if (v === null || v === undefined) return null;
-            const n = Number(v);
-            return Number.isFinite(n) ? n : null;
-        };
-        return {
-            betId: typeof raw?.betId === 'string' ? raw.betId : undefined,
-            betIndex,
-            betAmount,
-            status: raw?.status as ExistingBetStatus,
-            autoCashoutMultiplier: parseNum(raw?.autoCashoutMultiplier),
-            cashoutMultiplier: parseNum(raw?.cashoutMultiplier),
-            payout: parseNum(raw?.payout),
-            payoutGross: parseNum(raw?.payoutGross),
-            serviceFee: parseNum(raw?.serviceFee),
-            payoutNet: parseNum(raw?.payoutNet),
-            currentProfit: parseNum(raw?.currentProfit),
-            cashoutAtUtc: raw?.cashoutAtUtc ?? null,
-        };
-    }
-
-    private normalizeLeaderboardItem(raw: any): LeaderboardItem | null {
-        const playerId = typeof raw?.playerId === 'string' ? raw.playerId : '';
-        const rank = Number(raw?.rank);
-        if (!playerId || !Number.isFinite(rank)) return null;
-        const parseNum = (v: any, fallback: number = 0): number => {
-            const n = Number(v);
-            return Number.isFinite(n) ? n : fallback;
-        };
-        const parseNullableNum = (v: any): number | null => {
-            if (v === null || v === undefined) return null;
-            const n = Number(v);
-            return Number.isFinite(n) ? n : null;
-        };
-        const betStatuses = Array.isArray(raw?.betStatuses)
-            ? raw.betStatuses
-                .map((status: any) => Number(status))
-                .filter((status: number) => Number.isInteger(status))
-            : [];
-        return {
-            playerId,
-            totalBet: parseNum(raw?.totalBet, 0),
-            profit: parseNum(raw?.profit, 0),
-            cashoutMultiplier: parseNullableNum(raw?.cashoutMultiplier),
-            rank: Math.floor(rank),
-            betStatuses,
-        };
-    }
-
-    private normalizeMultiplierCurve(curve: MultiplierCurvePoint[] | null | undefined): MultiplierCurvePoint[] {
-        if (!Array.isArray(curve)) return [];
-        return curve
-            .filter((item) => Number.isFinite(item?.t) && Number.isFinite(item?.m))
-            .map((item) => ({ t: Number(item.t), m: Number(item.m) }))
-            .filter((item) => item.t >= 0 && item.m > 0)
-            .sort((a, b) => a.t - b.t);
-    }
 }

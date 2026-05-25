@@ -4,6 +4,13 @@
 
   /* Add your custom configuration here. */
   "compilerOptions": {
-    "strict": false
-  }
+    "strict": false,
+    "paths": {
+      "@juprojects/game-sdk": ["./packages/game-sdk/dist/index"]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "packages"
+  ]
 }

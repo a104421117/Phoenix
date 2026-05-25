@@ -1,8 +1,7 @@
 import { _decorator, Component, Label } from 'cc';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import { GameData } from '../Model/GameData';
-import { GmaeModel } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
+import { GmaeModel } from '../Model/GameData';
 const { ccclass, property } = _decorator;
 
 @ccclass('PlayerInfoView')
@@ -12,16 +11,16 @@ export class PlayerInfoView extends Component {
     private playerIdLabel: Label = null;
     /** 欄位設定。 */
     @property({ type: Label })
-    private balanceLabel: Label = null;
+    private walletLabel: Label = null;
 
     /** start。 */
     start() {
         const gameData = GameData.getInstance();
-        EventManager.getInstance().gameState.on(GmaeModel.PlayerId, this.setPlayerId, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Balance, this.setBalance, this);
+        GameData.getInstance().onGameState(GmaeModel.PlayerId, this.setPlayerId, this);
+        GameData.getInstance().onGameState(GmaeModel.Wallet, this.setWallet, this);
 
         this.setPlayerId(gameData.PlayerId);
-        this.setBalance(gameData.Balance);
+        this.setWallet(gameData.Wallet);
     }
 
     /**
@@ -33,10 +32,10 @@ export class PlayerInfoView extends Component {
     }
 
     /**
-     * setBalance。
-     * @param balance balance
+     * setWallet。
+     * @param wallet wallet
      */
-    private setBalance(balance: number) {
-        this.balanceLabel.string = BaseModel.getFormatNum(balance);
+    private setWallet(wallet: number) {
+        this.walletLabel.string = BaseModel.getMoneyStr(wallet);
     }
 }

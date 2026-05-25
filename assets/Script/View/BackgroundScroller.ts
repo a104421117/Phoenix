@@ -1,7 +1,6 @@
-﻿import { _decorator, Component, Enum, Node, UITransform, Vec3, instantiate, warn } from 'cc';
+import { _decorator, Component, Enum, Node, UITransform, Vec3, instantiate, warn } from 'cc';
 import { GameData } from '../Model/GameData';
-import { GmaeModel } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
+import { GmaeModel, RoundState } from '../Model/GameData';
 const { ccclass, property } = _decorator;
 
 /** 背景滾動方向 */
@@ -43,8 +42,8 @@ export class BackgroundScroller extends Component {
     @property({ type: Enum(ScrollDirection), tooltip: '背景滾動方向' })
     private direction: ScrollDirection = ScrollDirection.Left;
 
-    /** Sky 背景節點（場景關聯，未填會自動尋找名稱為 SkyNode 的節點） */
-    @property({ type: Node, tooltip: 'Sky 背景節點（場景關聯，未填會自動尋找名稱為 SkyNode 的節點）' })
+    /** Sky 背景節點（場景關聯，必須由 Inspector 綁定） */
+    @property({ type: Node, tooltip: 'Sky 背景節點（場景關聯，必須由 Inspector 綁定）' })
     private skyNode: Node = null;
 
     /** 已棄用：保留舊場景資料，不再驅動相機位移 */
@@ -74,10 +73,6 @@ export class BackgroundScroller extends Component {
     /** 背景下移是否使用 server runningElapsed 為主 */
     @property({ tooltip: '背景下移是否使用 server runningElapsed 為主' })
     private useServerElapsedForCameraRise: boolean = true;
-
-    /** runningElapsed 單位縮放（毫秒轉秒可用 0.001） */
-    @property({ tooltip: 'runningElapsed 單位縮放（毫秒轉秒可用 0.001）' })
-    private runningElapsedScale: number = 0.001;
 
     /** Running 期間是否在 server tick 之間使用本地時間補間 */
     @property({ tooltip: 'Running 期間是否在 server tick 之間使用本地時間補間' })
@@ -133,22 +128,22 @@ export class BackgroundScroller extends Component {
         this.resetPositions();
         this.elapsedTime = 0;
 
-        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onRoundStart, this);
-        EventManager.getInstance().gameState.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onRunningMultiplier, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onRoundExplode, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onRoundSettled, this);
+        GameData.getInstance().onGameState(GmaeModel.BettingCountdown, this.onRoundStart, this);
+        GameData.getInstance().onGameState(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        GameData.getInstance().onGameState(GmaeModel.Multiplier, this.onRunningMultiplier, this);
+        GameData.getInstance().onGameState(GmaeModel.Explode, this.onRoundExplode, this);
+        GameData.getInstance().onGameState(GmaeModel.Settled, this.onRoundSettled, this);
 
         this.syncCameraRiseFromCurrentGameState();
     }
 
     /** 移除監聽 */
     onDestroy() {
-        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onRoundStart, this);
-        EventManager.getInstance().gameState.off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onRunningMultiplier, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onRoundExplode, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onRoundSettled, this);
+        GameData.getInstance().offGameState(GmaeModel.BettingCountdown, this.onRoundStart, this);
+        GameData.getInstance().offGameState(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        GameData.getInstance().offGameState(GmaeModel.Multiplier, this.onRunningMultiplier, this);
+        GameData.getInstance().offGameState(GmaeModel.Explode, this.onRoundExplode, this);
+        GameData.getInstance().offGameState(GmaeModel.Settled, this.onRoundSettled, this);
     }
 
     /** 每幀更新 */
@@ -239,10 +234,10 @@ export class BackgroundScroller extends Component {
     /** 同步 runningElapsed */
     private onRunningElapsed(elapsed: number) {
         if (!Number.isFinite(elapsed)) return;
-        if (GameData.getInstance().RoundState !== 'Running') return;
+        if (GameData.getInstance().RoundState !== RoundState.Running) return;
 
         this.hasHandledBettingReset = false;
-        this.serverRoundElapsedSeconds = Math.max(0, elapsed * this.runningElapsedScale);
+        this.serverRoundElapsedSeconds = Math.max(0, elapsed);
         this.isRoundRunning = true;
         this.isCameraReturningToStart = false;
 
@@ -253,7 +248,7 @@ export class BackgroundScroller extends Component {
 
     /** 收到倍率更新代表仍在 Running */
     private onRunningMultiplier() {
-        if (GameData.getInstance().RoundState !== 'Running') return;
+        if (GameData.getInstance().RoundState !== RoundState.Running) return;
         this.hasHandledBettingReset = false;
         this.isRoundRunning = true;
         this.isCameraReturningToStart = false;
@@ -289,17 +284,17 @@ export class BackgroundScroller extends Component {
     /** 依目前遊戲狀態同步背景下移 */
     private syncCameraRiseFromCurrentGameState() {
         const gameData = GameData.getInstance();
-        this.serverRoundElapsedSeconds = Math.max(0, gameData.RunningElapsed * this.runningElapsedScale);
-        this.hasHandledBettingReset = gameData.RoundState === 'Betting';
+        this.serverRoundElapsedSeconds = Math.max(0, gameData.RunningElapsed);
+        this.hasHandledBettingReset = gameData.RoundState === RoundState.Betting;
 
-        if (gameData.RoundState === 'Running') {
+        if (gameData.RoundState === RoundState.Running) {
             this.isRoundRunning = true;
             this.isCameraReturningToStart = false;
             this.updateCameraRiseByElapsed();
             return;
         }
 
-        if (gameData.RoundState === 'Crashed') {
+        if (gameData.RoundState === RoundState.Crashed) {
             this.isRoundRunning = false;
             this.isCameraReturningToStart = false;
             this.updateCameraRiseByElapsed();
@@ -583,29 +578,6 @@ export class BackgroundScroller extends Component {
             return;
         }
 
-        const scene = this.node.scene;
-        if (!scene) return;
-
-        const found = this.findNodeByName(scene, 'SkyNode');
-        if (!found) {
-            warn('[BackgroundScroller] 找不到 SkyNode，將略過背景上升視覺位移');
-            return;
-        }
-
-        this.skyNode = found;
-        this.riseTargetNode = found;
-    }
-
-    /** 由根節點遞迴尋找指定名稱節點 */
-    private findNodeByName(root: Node, nodeName: string): Node | null {
-        if (root.name === nodeName) return root;
-
-        for (const child of root.children) {
-            const found = this.findNodeByName(child, nodeName);
-            if (found) return found;
-        }
-
-        return null;
+        warn('[BackgroundScroller] skyNode 未綁定，將略過背景上升視覺位移');
     }
 }
-

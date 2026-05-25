@@ -1,9 +1,12 @@
-import { _decorator, Component, Tween, TweenEasing, Vec3, sp, tween, warn } from 'cc';
-import { GameData } from '../Model/GameData';
-import { GmaeModel, type MultiplierCurvePoint } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
-import { CrashCurveGraphView } from './CrashCurveGraphView';
+import { _decorator, Component, Label, Node, Tween, TweenEasing, UITransform, Vec3, sp, tween, warn } from 'cc';
+import { GameData, GmaeModel, RoundState } from '../Model/GameData';
+import { type CrashMultiplierCurvePointContract } from '../Model/WebSocketManager';
 const { ccclass, property } = _decorator;
+
+type CurveSample = {
+    worldPosition: Vec3;
+    angle: number;
+};
 
 /** PhoenixPhase 列舉。 */
 enum PhoenixPhase {
@@ -34,6 +37,33 @@ export class PhoenixController extends Component {
 
     /** 飛行動畫 Track Index（不暴露到 Scene，如需調整直接改此值）。 */
     private static readonly FLY_TRACK_INDEX: number = 0;
+
+    private static readonly FAST_TARGET_CURVE = 137;
+    private static readonly MAX_CURVE = 158;
+    private static readonly MAX_MULT = 1500;
+
+    private static readonly DEFAULT_MULTIPLIER_CURVE: CrashMultiplierCurvePointContract[] = [
+        { m: 0.01, t: 0.0 },
+        { m: 0.40, t: 0.6 },
+        { m: 0.65, t: 1.6 },
+        { m: 0.85, t: 2.4 },
+        { m: 0.95, t: 2.8 },
+        { m: 1, t: 3.0 },
+        { m: 2, t: 7.0 },
+        { m: 3, t: 10.5 },
+        { m: 5, t: 16.5 },
+        { m: 8, t: 24.0 },
+        { m: 12, t: 32.0 },
+        { m: 18, t: 41.0 },
+        { m: 26, t: 49.5 },
+        { m: 40, t: 60.0 },
+        { m: 60, t: 70.0 },
+        { m: 100, t: 82.0 },
+        { m: 200, t: 98.0 },
+        { m: 400, t: 116.0 },
+        { m: 800, t: 137.0 },
+        { m: 1500, t: 158.0 },
+    ];
 
     /** 進入 Flying 時是否重播 fly 動畫。 */
     @property({ tooltip: '進入 Flying 時是否重播 fly 動畫' })
@@ -97,9 +127,28 @@ export class PhoenixController extends Component {
     @property({ tooltip: '最大仰角（Cocos 角度，向右=0、向上=+90）' })
     private maxUpAngleCocos: number = 85;
 
-    /** UI 曲線圖元件（請在 Inspector 指定，不依賴命名）。 */
-    @property({ type: CrashCurveGraphView, tooltip: 'UI 曲線圖元件（請在 Inspector 指定，不依賴命名）' })
-    private curveGraphView: CrashCurveGraphView = null;
+    /** RunningElapsed 平滑速度（越大越貼近 server，建議 8~16）。 */
+    @property({ tooltip: 'RunningElapsed 平滑速度（越大越貼近 server）', range: [4, 20, 1], slide: true })
+    private elapsedSmoothingSpeed: number = 12;
+
+    /** 鳳凰自己的飛行座標區；可指定與曲線相同的 plotArea，但不依賴曲線腳本。 */
+    @property({ type: UITransform, tooltip: '鳳凰飛行座標區，請指定與曲線圖相同的 plotArea。' })
+    private flightPathArea: UITransform = null;
+
+    @property({ tooltip: '飛行路徑是否使用 log Y，需與曲線圖設定一致。' })
+    private pathUseLogY: boolean = false;
+
+    @property({ tooltip: '飛行路徑是否交換 t/m 軸，需與曲線圖設定一致。' })
+    private pathSwapAxes: boolean = true;
+
+    @property({ tooltip: '飛行路徑顯示最大秒數；0 表示依曲線資料。' })
+    private pathVisualMaxTimeSeconds: number = 0;
+
+    @property({ tooltip: '飛行路徑顯示最小倍率。' })
+    private pathVisualMinMultiplier: number = 0.2;
+
+    @property({ tooltip: '飛行路徑顯示最大倍率；0 表示依曲線資料。' })
+    private pathVisualMaxMultiplier: number = 0;
 
     /** 飛行時是否沿 UI 曲線圖移動（位置對齊 crash 曲線）。 */
     @property({ tooltip: '飛行時是否沿 UI 曲線圖移動（位置對齊 crash 曲線）' })
@@ -125,13 +174,16 @@ export class PhoenixController extends Component {
     @property({ tooltip: '跟隨曲線時自動補償鳳凰子節點偏移（Controller 掛在父節點時建議開）' })
     private autoCompensatePhoenixChildOffset: boolean = true;
 
+    @property({ tooltip: '將曲線目前點對齊到鳳凰腳部，而不是 Spine 節點原點。' })
+    private alignGraphPointToPhoenixFoot: boolean = true;
+
+    @property({ type: Vec3, tooltip: '鳳凰腳部對位微調，會加在自動估算的腳部位置上。' })
+    private phoenixFootOffset: Vec3 = new Vec3(0, 0, 0);
+
     /** 是否使用 game.init 的 multiplierCurve 計算飛行角度。 */
     @property({ tooltip: '是否使用 game.init 的 multiplierCurve 計算飛行角度' })
     private useGameInitCurveAngle: boolean = true;
 
-    /** runningElapsed unit scale. Use 0.001 when the server value is milliseconds. */
-    @property({ tooltip: 'runningElapsed unit scale. Use 0.001 when the server value is milliseconds.' })
-    private runningElapsedScale: number = 0.001;
 
     /** 曲線角度最小值（度）。 */
     @property({ tooltip: '曲線角度最小值（度）' })
@@ -161,6 +213,10 @@ export class PhoenixController extends Component {
     @property({ tooltip: '墜毀後是否隱藏節點' })
     private hideAfterCrash: boolean = false;
 
+    /** Debug 秒數 Label（編輯器拖入）；顯示 RunningElapsed 的當前秒數。 */
+    @property({ type: Label, tooltip: 'Debug 秒數 Label（編輯器拖入；顯示 RunningElapsed）' })
+    private debugRunningSecondsLabel: Label = null;
+
     /** phase 欄位。 */
     private phase: PhoenixPhase = PhoenixPhase.Idle;
     private defaultScale: Vec3 = new Vec3(1, 1, 1);
@@ -180,35 +236,35 @@ export class PhoenixController extends Component {
     private currentSpineAnimation: string = '';
     /** currentSpineComponent 欄位。 */
     private currentSpineComponent: sp.Skeleton = null;
-    /** multiplierCurve 欄位。 */
-    private multiplierCurve: MultiplierCurvePoint[] = [];
     private latestRunningElapsedSeconds: number = 0;
+    private currentCurveElapsedSeconds: number = 0;
+    private targetCurveElapsedSeconds: number = 0;
     private hasRunningElapsedSample: boolean = false;
-    private isRoundRunning: boolean = false;
-    /** curveSlopeMin 欄位。 */
+    private curve: CrashMultiplierCurvePointContract[] = [...PhoenixController.DEFAULT_MULTIPLIER_CURVE];
     private curveSlopeMin: number = 0;
-    /** curveSlopeMax 欄位。 */
     private curveSlopeMax: number = 1;
-    /** warnedMissingCurveGraph 欄位。 */
-    private warnedMissingCurveGraph: boolean = false;
+    private minT: number = 0;
+    private maxT: number = 1;
+    private minMetricM: number = 0;
+    private maxMetricM: number = 1;
+    private warnedMissingFlightPathArea: boolean = false;
     private tmpAutoGraphOffset: Vec3 = new Vec3();
+    private tmpPhoenixFootOffset: Vec3 = new Vec3();
     private tmpSpineWorldPosition: Vec3 = new Vec3();
     private tmpSpineLocalPosition: Vec3 = new Vec3();
 
     /** start。 */
     start() {
         this.resolveSpine();
-        this.resolveCurveGraphView();
+        this.applyCurve(this.curve);
         this.defaultScale = this.node.scale.clone();
         this.eggIdlePosition = this.node.position.clone();
-        const gameData = GameData.getInstance();
-        this.applyMultiplierCurve(gameData.MultiplierCurve);
-        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onMultiplier, this);
-        EventManager.getInstance().gameState.on(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        EventManager.getInstance().gameState.on(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onExplode, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
+        GameData.getInstance().onGameState(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        GameData.getInstance().onGameState(GmaeModel.BettingCountdown, this.onBetting, this);
+        GameData.getInstance().onGameState(GmaeModel.Multiplier, this.onMultiplier, this);
+        GameData.getInstance().onGameState(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        GameData.getInstance().onGameState(GmaeModel.Explode, this.onExplode, this);
+        GameData.getInstance().onGameState(GmaeModel.Settled, this.onSettled, this);
 
         this.enterIdle();
     }
@@ -221,12 +277,12 @@ export class PhoenixController extends Component {
     }
 
     protected onDestroy(): void {
-        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onBetting, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onMultiplier, this);
-        EventManager.getInstance().gameState.off(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
-        EventManager.getInstance().gameState.off(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onExplode, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onSettled, this);
+        GameData.getInstance().offGameState(GmaeModel.MultiplierCurve, this.onMultiplierCurve, this);
+        GameData.getInstance().offGameState(GmaeModel.BettingCountdown, this.onBetting, this);
+        GameData.getInstance().offGameState(GmaeModel.Multiplier, this.onMultiplier, this);
+        GameData.getInstance().offGameState(GmaeModel.RunningElapsed, this.onRunningElapsed, this);
+        GameData.getInstance().offGameState(GmaeModel.Explode, this.onExplode, this);
+        GameData.getInstance().offGameState(GmaeModel.Settled, this.onSettled, this);
     }
 
     /**
@@ -236,6 +292,11 @@ export class PhoenixController extends Component {
     update(deltaTime: number) {
         if (this.phase !== PhoenixPhase.Flying) return;
         if (deltaTime <= 0) return;
+
+        this.flyingElapsed += deltaTime;
+        // Keep the same order as CrashCurveGraphView: map runningElapsed to curveT first, then smooth.
+        const smooth = 1 - Math.exp(-Math.max(0, this.elapsedSmoothingSpeed) * deltaTime);
+        this.currentCurveElapsedSeconds += (this.targetCurveElapsedSeconds - this.currentCurveElapsedSeconds) * smooth;
 
         const graphAngle = this.updatePositionByGraph();
         if (graphAngle !== null) {
@@ -252,8 +313,7 @@ export class PhoenixController extends Component {
             return;
         }
 
-        this.flyingElapsed += deltaTime;
-
+        // graph 不可用時的 fallback：基礎上升 + 波浪 + 水平漂移
         const rise = this.getCurrentRiseSpeed() * deltaTime;
         this.flyingBaseY += rise;
 
@@ -268,9 +328,9 @@ export class PhoenixController extends Component {
 
     /** onBetting。 */
     private onBetting() {
-        this.isRoundRunning = false;
         this.hasRunningElapsedSample = false;
         this.latestRunningElapsedSeconds = 0;
+        this.resetCurveElapsedToStart();
         if (!this.resetOnBetting) return;
         this.enterIdle();
     }
@@ -280,9 +340,10 @@ export class PhoenixController extends Component {
      * @param multiplier multiplier
      */
     private onMultiplier(multiplier: number) {
+        if (GameData.getInstance().RoundState !== RoundState.Running) return;
+
         if (Number.isFinite(multiplier)) {
             this.latestMultiplier = Math.max(1, multiplier);
-            this.isRoundRunning = true;
         }
 
         if (this.phase === PhoenixPhase.Idle) {
@@ -303,31 +364,36 @@ export class PhoenixController extends Component {
     private onRunningElapsed(elapsed: number) {
         if (!Number.isFinite(elapsed)) return;
 
-        this.latestRunningElapsedSeconds = Math.max(0, elapsed * this.runningElapsedScale);
+        this.latestRunningElapsedSeconds = Math.max(0, elapsed);
+        const curveT = this.realToCurveT(this.latestRunningElapsedSeconds);
+        const bounds = this.getCurveBounds();
+        this.targetCurveElapsedSeconds = this.clamp(curveT, bounds.minT, bounds.maxT);
         this.hasRunningElapsedSample = true;
-        this.isRoundRunning = true;
-    }
-
-    /**
-     * onMultiplierCurve。
-     * @param curve curve
-     */
-    private onMultiplierCurve(curve: MultiplierCurvePoint[]) {
-        this.applyMultiplierCurve(curve);
+        if (this.debugRunningSecondsLabel) {
+            this.debugRunningSecondsLabel.string = `running: ${this.latestRunningElapsedSeconds.toFixed(2)}s`;
+        }
     }
 
     /** onExplode。 */
+    private onMultiplierCurve(curve: CrashMultiplierCurvePointContract[]) {
+        this.applyCurve(curve);
+    }
+
     private onExplode() {
-        this.isRoundRunning = false;
-        if (this.phase === PhoenixPhase.Crashing || this.phase === PhoenixPhase.Idle) return;
+        if (this.phase === PhoenixPhase.Crashing) return;
+        if (this.phase === PhoenixPhase.Idle) {
+            const m = Number(GameData.getInstance().Multiplier);
+            if (Number.isFinite(m)) this.latestMultiplier = Math.max(1, m);
+            this.currentCurveElapsedSeconds = this.targetCurveElapsedSeconds;
+        }
         this.startCrashing();
     }
 
     /** onSettled。 */
     private onSettled() {
-        this.isRoundRunning = false;
         this.hasRunningElapsedSample = false;
         this.latestRunningElapsedSeconds = 0;
+        this.resetCurveElapsedToStart();
         if (!this.resetOnBetting) return;
         this.enterIdle();
     }
@@ -337,9 +403,9 @@ export class PhoenixController extends Component {
         this.phase = PhoenixPhase.Idle;
         this.latestMultiplier = 1;
         this.flyingElapsed = 0;
-        this.isRoundRunning = false;
         this.hasRunningElapsedSample = false;
         this.latestRunningElapsedSeconds = 0;
+        this.resetCurveElapsedToStart();
 
         Tween.stopAllByTarget(this.node);
         this.node.active = true;
@@ -353,9 +419,13 @@ export class PhoenixController extends Component {
         /** New round starts from a deterministic pose to avoid carrying previous round transform. */
         this.resetRoundStartTransform();
         this.phase = PhoenixPhase.Flying;
-        this.isRoundRunning = true;
         this.playStartThenFly(this.restartFlyOnEnter);
         this.flyingElapsed = 0;
+
+        this.flyingAnchorX = this.node.position.x;
+        this.flyingBaseY = this.node.position.y;
+        this.currentAngle = this.node.angle;
+        this.previousPosition = this.node.position.clone();
 
         const graphAngle = this.updatePositionByGraph(false);
         if (graphAngle !== null) {
@@ -370,13 +440,7 @@ export class PhoenixController extends Component {
             }
             this.updatePositionByGraph(false);
             this.previousPosition = this.node.position.clone();
-            return;
         }
-
-        this.flyingAnchorX = this.node.position.x;
-        this.flyingBaseY = this.node.position.y;
-        this.currentAngle = this.node.angle;
-        this.previousPosition = this.node.position.clone();
     }
 
     /** resetRoundStartTransform。 */
@@ -396,6 +460,8 @@ export class PhoenixController extends Component {
         this.node.angle = 0;
         this.currentAngle = 0;
         this.playEggDie(true);
+        this.updatePositionByGraph(true);
+        this.previousPosition = this.node.position.clone();
 
         const from = this.node.position;
         const targetPos = new Vec3(from.x, from.y - this.crashDropDistance, from.z);
@@ -640,8 +706,13 @@ export class PhoenixController extends Component {
      */
     private updatePositionByGraph(preferElapsedProgress: boolean = true): number | null {
         if (!this.followGraphPosition) return null;
-        this.resolveCurveGraphView();
-        if (!this.curveGraphView) return null;
+        if (!this.flightPathArea) {
+            if (!this.warnedMissingFlightPathArea) {
+                warn('[PhoenixController] Missing flightPathArea. Assign the same UITransform used by the curve plot area.');
+                this.warnedMissingFlightPathArea = true;
+            }
+            return null;
+        }
 
         const sample = this.getGraphFollowSample(preferElapsedProgress);
         if (!sample) return null;
@@ -651,32 +722,14 @@ export class PhoenixController extends Component {
         return sample.angle;
     }
 
-    private getGraphFollowSample(preferElapsedProgress: boolean): { worldPosition: Vec3; angle: number } | null {
+    private getGraphFollowSample(preferElapsedProgress: boolean): CurveSample | null {
+        // 用本地平滑後的 elapsed 經 view 的 realToCurveT 映射成曲線秒數再 sample；
+        // 跟頭部圓形「同一套公式、各自計算」，不讀 view 內部狀態。
         if (preferElapsedProgress && this.hasRunningElapsedSample) {
-            return this.curveGraphView.sampleByElapsed(this.latestRunningElapsedSeconds) ??
-                this.curveGraphView.sampleByMultiplier(this.latestMultiplier);
+            const sample = this.sampleByElapsed(this.currentCurveElapsedSeconds);
+            if (sample) return sample;
         }
-
-        return this.curveGraphView.sampleByMultiplier(this.latestMultiplier);
-    }
-
-    /** resolveCurveGraphView。 */
-    private resolveCurveGraphView() {
-        if (this.curveGraphView) return;
-
-        const scene = this.node.scene;
-        if (!scene) return;
-
-        const found = scene.getComponentsInChildren(CrashCurveGraphView);
-        if (!found || found.length <= 0) {
-            if (!this.warnedMissingCurveGraph) {
-                warn('[PhoenixController] 未找到 CrashCurveGraphView，鳳凰無法跟隨曲線');
-                this.warnedMissingCurveGraph = true;
-            }
-            return;
-        }
-
-        this.curveGraphView = found.find((item) => item.enabledInHierarchy) ?? found[0];
+        return this.sampleByMultiplier(this.latestMultiplier);
     }
 
     /**
@@ -686,6 +739,238 @@ export class PhoenixController extends Component {
      */
     private mapCurveWorldToPhoenixWorld(curveWorldPosition: Vec3): Vec3 {
         return curveWorldPosition;
+    }
+
+    private sampleByMultiplier(multiplier: number): CurveSample | null {
+        if (!this.flightPathArea) return null;
+        const point = this.getCurvePointByMultiplier(multiplier);
+        if (!point) return null;
+        const local = this.toLocalPoint(point.t, point.m);
+        const angle = this.getAngleByTime(point.t);
+        return { worldPosition: this.flightPathArea.convertToWorldSpaceAR(local), angle };
+    }
+
+    private sampleByElapsed(elapsedSeconds: number): CurveSample | null {
+        if (!this.flightPathArea) return null;
+        const point = this.getCurvePointByCurveT(elapsedSeconds);
+        if (!point) return null;
+        const local = this.toLocalPoint(point.t, point.m);
+        const angle = this.getAngleByTime(point.t);
+        return { worldPosition: this.flightPathArea.convertToWorldSpaceAR(local), angle };
+    }
+
+    private applyCurve(rawCurve: CrashMultiplierCurvePointContract[] | null | undefined) {
+        const normalized = Array.isArray(rawCurve)
+            ? rawCurve
+                .filter((item) => Number.isFinite(item?.t) && Number.isFinite(item?.m))
+                .map((item) => ({ t: Number(item.t), m: Number(item.m) }))
+                .filter((item) => item.t >= 0 && item.m > 0)
+                .sort((a, b) => a.t - b.t)
+            : [];
+
+        this.curve = normalized.length >= 2
+            ? normalized
+            : [...PhoenixController.DEFAULT_MULTIPLIER_CURVE];
+
+        this.rebuildSlopeRange();
+        this.rebuildDisplayBounds();
+        this.resetCurveElapsedToStart();
+    }
+
+    private resetCurveElapsedToStart() {
+        const startElapsed = this.curve.length > 0 ? this.curve[0].t : 0;
+        this.currentCurveElapsedSeconds = startElapsed;
+        this.targetCurveElapsedSeconds = startElapsed;
+    }
+
+    private rebuildSlopeRange() {
+        this.curveSlopeMin = 0;
+        this.curveSlopeMax = 1;
+        if (this.curve.length < 2) return;
+
+        const slopes: number[] = [];
+        for (let i = 0; i < this.curve.length - 1; i++) {
+            const a = this.curve[i];
+            const b = this.curve[i + 1];
+            const dt = b.t - a.t;
+            if (dt <= 0) continue;
+            const slope = (b.m - a.m) / dt;
+            if (!Number.isFinite(slope)) continue;
+            slopes.push(Math.max(0, slope));
+        }
+
+        if (slopes.length <= 0) return;
+        this.curveSlopeMin = Math.min(...slopes);
+        this.curveSlopeMax = Math.max(...slopes);
+        if (this.curveSlopeMax - this.curveSlopeMin < 0.0001) {
+            this.curveSlopeMin = 0;
+        }
+    }
+
+    private rebuildDisplayBounds() {
+        const bounds = this.getCurveBounds();
+
+        this.minT = bounds.minT;
+        this.maxT = this.pathVisualMaxTimeSeconds > 0 ? bounds.minT + this.pathVisualMaxTimeSeconds : bounds.maxT;
+        if (this.maxT - this.minT < 0.000001) this.maxT = this.minT + 1;
+
+        const displayMinM = this.pathVisualMinMultiplier > 0 ? this.pathVisualMinMultiplier : bounds.minM;
+        let displayMaxM = this.pathVisualMaxMultiplier > 0 ? this.pathVisualMaxMultiplier : bounds.maxM;
+        if (displayMaxM - displayMinM < 0.000001) displayMaxM = displayMinM + 1;
+
+        const minMetric = this.metricM(displayMinM);
+        const maxMetric = this.metricM(displayMaxM);
+        this.minMetricM = Math.min(minMetric, maxMetric);
+        this.maxMetricM = Math.max(minMetric, maxMetric);
+        if (this.maxMetricM - this.minMetricM < 0.000001) this.maxMetricM = this.minMetricM + 1;
+    }
+
+    private getCurveBounds(): { minT: number; maxT: number; minM: number; maxM: number } {
+        if (this.curve.length < 2) return { minT: 0, maxT: 1, minM: 0.2, maxM: 1 };
+        let minM = Number.POSITIVE_INFINITY;
+        let maxM = Number.NEGATIVE_INFINITY;
+        for (const p of this.curve) {
+            if (p.m < minM) minM = p.m;
+            if (p.m > maxM) maxM = p.m;
+        }
+        return { minT: this.curve[0].t, maxT: this.curve[this.curve.length - 1].t, minM, maxM };
+    }
+
+    private realToCurveT(realT: number): number {
+        const fastEnd = this.getFastEnd();
+        const slowEnd = this.getSlowEnd();
+        if (realT <= 0 || fastEnd <= 0 || slowEnd <= fastEnd) return 0;
+
+        if (realT <= fastEnd) {
+            return realT * (PhoenixController.FAST_TARGET_CURVE / fastEnd);
+        }
+
+        if (realT <= slowEnd) {
+            const slowDur = slowEnd - fastEnd;
+            return PhoenixController.FAST_TARGET_CURVE
+                + (PhoenixController.MAX_CURVE - PhoenixController.FAST_TARGET_CURVE) * (realT - fastEnd) / slowDur;
+        }
+
+        return PhoenixController.MAX_CURVE;
+    }
+
+    private getCurvePointByCurveT(curveT: number): { t: number; m: number } | null {
+        if (this.curve.length < 2) return null;
+        const minT = this.curve[0].t;
+        const maxT = this.curve[this.curve.length - 1].t;
+        const clampedT = this.clamp(curveT, minT, maxT);
+        for (let i = 0; i < this.curve.length - 1; i++) {
+            const a = this.curve[i];
+            const b = this.curve[i + 1];
+            if (a.t <= clampedT && clampedT <= b.t) {
+                const dt = b.t - a.t;
+                const ratio = dt > 0.000001 ? (clampedT - a.t) / dt : 0;
+                return { t: clampedT, m: a.m + (b.m - a.m) * ratio };
+            }
+        }
+        return { t: clampedT, m: this.curve[this.curve.length - 1].m };
+    }
+
+    private getCurvePointByMultiplier(multiplier: number): { t: number; m: number } | null {
+        if (this.curve.length < 2) return null;
+        const firstM = this.curve[0].m;
+        const lastM = this.curve[this.curve.length - 1].m;
+        const lo = Math.min(firstM, lastM);
+        const hi = Math.max(firstM, lastM);
+        const clampedM = this.clamp(multiplier, lo, hi);
+        const idx = this.findSegmentByMultiplier(clampedM);
+        if (idx < 0) return null;
+        const a = this.curve[idx];
+        const b = this.curve[idx + 1];
+        const mSpan = b.m - a.m;
+        const ratio = Math.abs(mSpan) > 0.000001 ? (clampedM - a.m) / mSpan : 0;
+        return { t: a.t + (b.t - a.t) * ratio, m: clampedM };
+    }
+
+    private getCurveSlope(multiplier: number): number | null {
+        if (this.curve.length < 2) return null;
+        if (!Number.isFinite(multiplier)) return null;
+        const idx = this.findSegmentByMultiplier(multiplier);
+        if (idx < 0) return null;
+        const a = this.curve[idx];
+        const b = this.curve[idx + 1];
+        const dt = b.t - a.t;
+        if (dt <= 0) return null;
+        const slope = Math.max(0, (b.m - a.m) / dt);
+        const slopeSpan = this.curveSlopeMax - this.curveSlopeMin;
+        if (slopeSpan > 0.0001) {
+            return this.clamp((slope - this.curveSlopeMin) / slopeSpan, 0, 1);
+        }
+        return slope > 0 ? 1 : 0;
+    }
+
+    private findSegmentByMultiplier(multiplier: number): number {
+        if (this.curve.length < 2) return -1;
+        const first = this.curve[0];
+        if (multiplier <= first.m) return 0;
+        for (let i = 0; i < this.curve.length - 1; i++) {
+            const a = this.curve[i];
+            const b = this.curve[i + 1];
+            const minM = Math.min(a.m, b.m);
+            const maxM = Math.max(a.m, b.m);
+            if (multiplier >= minM && multiplier <= maxM) return i;
+        }
+        return this.curve.length - 2;
+    }
+
+    private toLocalPoint(t: number, m: number): Vec3 {
+        const width = this.flightPathArea.contentSize.width;
+        const height = this.flightPathArea.contentSize.height;
+        const anchor = this.flightPathArea.anchorPoint;
+
+        const left = -width * anchor.x;
+        const bottom = -height * anchor.y;
+
+        const tNorm = this.clamp((t - this.minT) / (this.maxT - this.minT), 0, 1);
+        const mMetric = this.metricM(Math.max(0.000001, m));
+        const mNorm = this.clamp((mMetric - this.minMetricM) / (this.maxMetricM - this.minMetricM), 0, 1);
+
+        const normX = this.pathSwapAxes ? tNorm : mNorm;
+        const normY = this.pathSwapAxes ? mNorm : tNorm;
+
+        return new Vec3(
+            left + normX * width,
+            bottom + normY * height,
+            0
+        );
+    }
+
+    private metricM(m: number): number {
+        const safeM = Math.max(0.000001, m);
+        if (!this.pathUseLogY) return safeM;
+        return Math.log(safeM);
+    }
+
+    private getAngleByTime(t: number): number {
+        const bounds = this.getCurveBounds();
+        const tSpan = Math.max(0.000001, bounds.maxT - bounds.minT);
+        const dt = Math.max(0.0005, tSpan * 0.01);
+        const prev = this.getCurvePointByCurveT(t - dt);
+        const next = this.getCurvePointByCurveT(t + dt);
+        if (!prev || !next) return 0;
+        const pa = this.toLocalPoint(prev.t, prev.m);
+        const pb = this.toLocalPoint(next.t, next.m);
+        const dx = pb.x - pa.x;
+        const dy = pb.y - pa.y;
+        if (Math.abs(dx) < 0.000001 && Math.abs(dy) < 0.000001) return 0;
+        return Math.atan2(dy, dx) * 180 / Math.PI;
+    }
+
+    private getFastEnd(): number {
+        return this.curve.length >= 2
+            ? this.curve[Math.floor(this.curve.length / 4)].t
+            : 0;
+    }
+
+    private getSlowEnd(): number {
+        return this.curve.length >= 2
+            ? this.curve[Math.floor(this.curve.length / 2)].t
+            : 0;
     }
 
     /**
@@ -720,8 +1005,8 @@ export class PhoenixController extends Component {
             return this.tmpAutoGraphOffset;
         }
 
-        const phoenixNode = this.phoenixSpine?.node;
-        if (!phoenixNode || phoenixNode.parent !== this.node) {
+        const spineNode = this.getGraphFollowSpineNode();
+        if (!spineNode || spineNode.parent !== this.node) {
             this.tmpAutoGraphOffset.set(0, 0, 0);
             return this.tmpAutoGraphOffset;
         }
@@ -729,16 +1014,45 @@ export class PhoenixController extends Component {
         const rad = this.currentAngle * Math.PI / 180;
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
-        const x = phoenixNode.position.x;
-        const y = phoenixNode.position.y;
+        const footOffset = this.getSpineFootOffset(spineNode);
+        const x = spineNode.position.x + footOffset.x;
+        const y = spineNode.position.y + footOffset.y;
 
-        // Compensate the rotated child offset so the visible phoenix stays on the graph sample.
+        // Compensate the rotated child offset so the visible spine foot stays on the graph sample.
         this.tmpAutoGraphOffset.set(
             -(x * cos - y * sin),
             -(x * sin + y * cos),
-            -phoenixNode.position.z
+            -(spineNode.position.z + footOffset.z)
         );
         return this.tmpAutoGraphOffset;
+    }
+
+    private getGraphFollowSpineNode(): Node | null {
+        const currentNode = this.currentSpineComponent?.node;
+        if (currentNode?.parent === this.node) return currentNode;
+
+        const eggNode = this.eggSpine?.node;
+        if (eggNode?.active && eggNode.parent === this.node) return eggNode;
+
+        const phoenixNode = this.phoenixSpine?.node;
+        if (phoenixNode?.active && phoenixNode.parent === this.node) return phoenixNode;
+        if (phoenixNode?.parent === this.node) return phoenixNode;
+
+        return null;
+    }
+
+    private getSpineFootOffset(spineNode: Node): Vec3 {
+        this.tmpPhoenixFootOffset.set(this.phoenixFootOffset);
+        if (!this.alignGraphPointToPhoenixFoot) return this.tmpPhoenixFootOffset;
+
+        const transform = spineNode.getComponent(UITransform);
+        if (!transform) return this.tmpPhoenixFootOffset;
+
+        const anchor = transform.anchorPoint;
+        const size = transform.contentSize;
+        this.tmpPhoenixFootOffset.x += (0.5 - anchor.x) * size.width * spineNode.scale.x;
+        this.tmpPhoenixFootOffset.y += -anchor.y * size.height * spineNode.scale.y;
+        return this.tmpPhoenixFootOffset;
     }
 
     /**
@@ -776,99 +1090,16 @@ export class PhoenixController extends Component {
         return normalized;
     }
 
-    /**
-     * applyMultiplierCurve。
-     * @param curve curve
-     */
-    private applyMultiplierCurve(curve: MultiplierCurvePoint[] | null | undefined) {
-        const normalized = Array.isArray(curve)
-            ? curve
-                .filter((item) => Number.isFinite(item?.t) && Number.isFinite(item?.m))
-                .map((item) => ({ t: Number(item.t), m: Number(item.m) }))
-                .sort((a, b) => a.t - b.t)
-            : [];
-        this.multiplierCurve = normalized;
-        this.rebuildCurveSlopeRange();
-    }
-
-    /** rebuildCurveSlopeRange。 */
-    private rebuildCurveSlopeRange() {
-        this.curveSlopeMin = 0;
-        this.curveSlopeMax = 1;
-        if (this.multiplierCurve.length < 2) return;
-
-        const slopes: number[] = [];
-        for (let i = 0; i < this.multiplierCurve.length - 1; i++) {
-            const a = this.multiplierCurve[i];
-            const b = this.multiplierCurve[i + 1];
-            const dt = b.t - a.t;
-            if (dt <= 0) continue;
-            const slope = (b.m - a.m) / dt;
-            if (!Number.isFinite(slope)) continue;
-            slopes.push(Math.max(0, slope));
-        }
-
-        if (slopes.length <= 0) return;
-
-        this.curveSlopeMin = Math.min(...slopes);
-        this.curveSlopeMax = Math.max(...slopes);
-        if (this.curveSlopeMax - this.curveSlopeMin < 0.0001) {
-            this.curveSlopeMin = 0;
-        }
-    }
-
-    /**
-     * getCurveTargetAngle。
-     * @returns getCurveTargetAngle 回傳值
-     */
     private getCurveTargetAngle(): number | null {
         if (!this.useGameInitCurveAngle) return null;
-        if (this.multiplierCurve.length < 2) return null;
         if (!Number.isFinite(this.latestMultiplier)) return null;
 
-        const idx = this.findCurveSegmentIndexByMultiplier(this.latestMultiplier);
-        if (idx < 0) return null;
-
-        const a = this.multiplierCurve[idx];
-        const b = this.multiplierCurve[idx + 1];
-        const dt = b.t - a.t;
-        if (dt <= 0) return null;
-
-        const slope = Math.max(0, (b.m - a.m) / dt);
-        const slopeSpan = this.curveSlopeMax - this.curveSlopeMin;
-        const normalized = slopeSpan > 0.0001
-            ? this.clamp((slope - this.curveSlopeMin) / slopeSpan, 0, 1)
-            : (slope > 0 ? 1 : 0);
+        const normalized = this.getCurveSlope(this.latestMultiplier);
+        if (normalized === null) return null;
 
         const minAngle = Math.min(this.curveMinAngle, this.curveMaxAngle);
         const maxAngle = Math.max(this.curveMinAngle, this.curveMaxAngle);
         const angleByCurve = minAngle + (maxAngle - minAngle) * normalized;
         return this.clamp(angleByCurve, -Math.abs(this.maxAngle), Math.abs(this.maxAngle));
-    }
-
-    /**
-     * findCurveSegmentIndexByMultiplier。
-     * @param multiplier multiplier
-     * @returns findCurveSegmentIndexByMultiplier 回傳值
-     */
-    private findCurveSegmentIndexByMultiplier(multiplier: number): number {
-        if (this.multiplierCurve.length < 2) return -1;
-
-        const first = this.multiplierCurve[0];
-        if (multiplier <= first.m) {
-            return 0;
-        }
-
-        for (let i = 0; i < this.multiplierCurve.length - 1; i++) {
-            const a = this.multiplierCurve[i];
-            const b = this.multiplierCurve[i + 1];
-            const minM = Math.min(a.m, b.m);
-            const maxM = Math.max(a.m, b.m);
-            if (multiplier >= minM && multiplier <= maxM) {
-                return i;
-            }
-        }
-
-        return this.multiplierCurve.length - 2;
     }
 }

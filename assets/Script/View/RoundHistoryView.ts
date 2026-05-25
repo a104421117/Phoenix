@@ -1,8 +1,7 @@
 import { _decorator, Component, Label, Node, Prefab, UITransform, Vec3, instantiate, tween } from 'cc';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import { GameData } from '../Model/GameData';
-import { GmaeModel } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
+import { GmaeModel } from '../Model/GameData';
 import { FullHistoryItem } from './FullHistoryItem';
 import { RecentHistoryItem } from './RecentHistoryItem';
 const { ccclass, property } = _decorator;
@@ -54,12 +53,12 @@ export class RoundHistoryView extends Component {
         this.ensureSummaryLabels();
 
         const gameData = GameData.getInstance();
-        EventManager.getInstance().gameState.on(GmaeModel.RoundHistory, this.onRoundHistory, this);
+        GameData.getInstance().onGameState(GmaeModel.RoundHistory, this.onRoundHistory, this);
         this.onRoundHistory(gameData.RoundHistory);
     }
 
     protected onDestroy(): void {
-        EventManager.getInstance().gameState.off(GmaeModel.RoundHistory, this.onRoundHistory, this);
+        GameData.getInstance().offGameState(GmaeModel.RoundHistory, this.onRoundHistory, this);
     }
 
     private initRecentItems() {
@@ -304,7 +303,7 @@ export class RoundHistoryView extends Component {
         if (value === null || value === undefined || !Number.isFinite(value)) {
             return '-';
         }
-        return BaseModel.getRoundToStr(value, 2);
+        return BaseModel.getFloorStr(value, 2);
     }
 
 }

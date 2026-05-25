@@ -2,12 +2,12 @@
   "ver": "1.1.50",
   "importer": "prefab",
   "imported": true,
-  "uuid": "f6bb2634-5fbb-4e54-ab19-cfbc77bbf050",
+  "uuid": "020ff364-44ab-4b9d-a0c6-43867f16cbea",
   "files": [
     ".json"
   ],
   "subMetas": {},
   "userData": {
-    "syncNodeName": "LobbyObj"
+    "syncNodeName": "BalanceLayout"
   }
 }

@@ -1,6 +1,6 @@
 import { _decorator, AudioClip, AudioSource, Node, director } from 'cc';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
-import { EventManager } from '../Model/EventManager';
+import { GameData } from '../Model/GameData';
 import { AudioModel, BgmName, SfxName } from '../Model/AudioModel';
 
 const { ccclass, property } = _decorator;
@@ -11,7 +11,7 @@ const { ccclass, property } = _decorator;
  *   - 在編輯器將每個 SFX / BGM 的 AudioClip 拖入下方 sfxClips / bgmClips
  *   - clip 的 name 必須對應 SfxName / BgmName 的字串值
  *
- * 觸發：任何端透過 EventManager.audio.emit(AudioModel.PlaySfx, SfxName.X) 等事件呼叫，
+ * 觸發：任何端透過 GameData.getInstance().emitAudio(AudioModel.PlaySfx, SfxName.X) 等方法呼叫，
  *      AudioManager 會找到對應 clip 並交給內部的 AudioSource 播放。
  */
 @ccclass('AudioManager')
@@ -51,21 +51,21 @@ export class AudioManager extends BaseModel.ComponentSingleton {
     }
 
     private bindAudioEvents() {
-        const bus = EventManager.getInstance().audio;
-        bus.on(AudioModel.PlaySfx, this.onPlaySfx, this);
-        bus.on(AudioModel.PlayBgm, this.onPlayBgm, this);
-        bus.on(AudioModel.StopBgm, this.onStopBgm, this);
-        bus.on(AudioModel.SetBgmVolume, this.onSetBgmVolume, this);
-        bus.on(AudioModel.SetSfxVolume, this.onSetSfxVolume, this);
+        const em = GameData.getInstance();
+        em.onAudio(AudioModel.PlaySfx, this.onPlaySfx, this);
+        em.onAudio(AudioModel.PlayBgm, this.onPlayBgm, this);
+        em.onAudio(AudioModel.StopBgm, this.onStopBgm, this);
+        em.onAudio(AudioModel.SetBgmVolume, this.onSetBgmVolume, this);
+        em.onAudio(AudioModel.SetSfxVolume, this.onSetSfxVolume, this);
     }
 
     private unbindAudioEvents() {
-        const bus = EventManager.getInstance().audio;
-        bus.off(AudioModel.PlaySfx, this.onPlaySfx, this);
-        bus.off(AudioModel.PlayBgm, this.onPlayBgm, this);
-        bus.off(AudioModel.StopBgm, this.onStopBgm, this);
-        bus.off(AudioModel.SetBgmVolume, this.onSetBgmVolume, this);
-        bus.off(AudioModel.SetSfxVolume, this.onSetSfxVolume, this);
+        const em = GameData.getInstance();
+        em.offAudio(AudioModel.PlaySfx, this.onPlaySfx, this);
+        em.offAudio(AudioModel.PlayBgm, this.onPlayBgm, this);
+        em.offAudio(AudioModel.StopBgm, this.onStopBgm, this);
+        em.offAudio(AudioModel.SetBgmVolume, this.onSetBgmVolume, this);
+        em.offAudio(AudioModel.SetSfxVolume, this.onSetSfxVolume, this);
     }
 
     private onPlaySfx(name: SfxName) {

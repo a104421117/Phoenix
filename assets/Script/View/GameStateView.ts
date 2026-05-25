@@ -3,9 +3,8 @@ import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
 import { NumberSelector } from '../../Game.Client.Common/NumberSelector';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import { GameData } from '../Model/GameData';
-import { GmaeModel, ExistingBet, ExistingBetStatus, GameErrorPrompt } from '../Model/GameModel';
-import { CrashBetItemContract, CrashCashoutItemContract } from '../Model/WebsocketModel';
-import { EventManager } from '../Model/EventManager';
+import { GmaeModel, ExistingBet, ExistingBetStatus, GameErrorPrompt, RoundState } from '../Model/GameData';
+import { type CrashBetItemContract, type CrashCashoutItemContract } from '../Model/WebSocketManager';
 import { GameController } from '../Controller/GameController';
 import { AudioModel, SfxName } from '../Model/AudioModel';
 
@@ -67,6 +66,7 @@ export class GameStateView extends Component {
     private countdownSpineAnimationName: string = 'animation';
 
     private lastCountdownSecond: number = -1;
+    private playedCountdownSpineSeconds: Set<number> = new Set();
 
     @property({ type: Label })
     private multiplierLabel: Label = null;
@@ -98,17 +98,33 @@ export class GameStateView extends Component {
     @property({ type: Node, tooltip: 'Container for bet item prefabs.' })
     private betItemContainer: Node = null;
 
+    @property({ type: Node, tooltip: '掛機：每局投注次數 NumberSelector root.' })
+    private afkBetPerRoundNode: Node = null;
+
+    @property({ type: Node, tooltip: '掛機：每注投注金額 NumberSelector root.' })
+    private afkBetNode: Node = null;
+
+    @property({ type: Node, tooltip: '掛機：自動局數 NumberSelector root.' })
+    private afkAutoRoundNode: Node = null;
+
+    @property({ type: Slider, tooltip: '掛機：自動領回倍數 slider.' })
+    private afkAutoCashoutSlider: Slider = null;
+
+    @property({ type: Label, tooltip: '掛機：自動領回倍數 label.' })
+    private afkAutoCashoutLabel: Label = null;
+
+    @property({ type: Button, tooltip: '掛機：開始/停止 button.' })
+    private afkStartButton: Button = null;
+
+    @property({ type: Label, tooltip: '掛機：開始/停止 button label.' })
+    private afkStartButtonLabel: Label = null;
+
     private generatedBetNodes: Node[] = [];
     private betItemViews: BetItemView[] = [];
     private maxBetCount: number = 0;
-    private currentMultiplier: number = 1;
     private afkBetPerRoundSelector: NumberSelector = null;
     private afkBetUnitsSelector: NumberSelector = null;
     private afkAutoRoundSelector: NumberSelector = null;
-    private afkAutoCashoutSlider: Slider = null;
-    private afkAutoCashoutLabel: Label = null;
-    private afkStartButton: Button = null;
-    private afkStartButtonLabel: Label = null;
     private afkBetPerRound: number = 1;
     private afkBetUnits: number = 0;
     private afkAutoRounds: number = 10;
@@ -123,61 +139,32 @@ export class GameStateView extends Component {
 
     start() {
         const gameData = GameData.getInstance();
-        EventManager.getInstance().gameState.on(GmaeModel.BetOptions, this.onBetOptions, this);
-        EventManager.getInstance().gameState.on(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
-        EventManager.getInstance().gameState.on(GmaeModel.ExistingBets, this.onExistingBets, this);
-        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        EventManager.getInstance().gameState.on(GmaeModel.CrashBet, this.onCrashBet, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Cashout, this.onCashout, this);
-        EventManager.getInstance().gameState.on(GmaeModel.CashoutTotalPayout, this.onCashoutTotalPayout, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onRunning, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onCrashed, this);
-        EventManager.getInstance().gameState.on(GmaeModel.CrashedCountdown, this.onCrashedCountdown, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
+        GameData.getInstance().onGameState(GmaeModel.BetLevels, this.onBetLevels, this);
+        GameData.getInstance().onGameState(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
+        GameData.getInstance().onGameState(GmaeModel.ExistingBets, this.onExistingBets, this);
+        GameData.getInstance().onGameState(GmaeModel.BettingCountdown, this.onBetting, this);
+        GameData.getInstance().onGameState(GmaeModel.CrashBet, this.onCrashBet, this);
+        GameData.getInstance().onGameState(GmaeModel.Cashout, this.onCashout, this);
+        GameData.getInstance().onGameState(GmaeModel.CashoutTotalPayout, this.onCashoutTotalPayout, this);
+        GameData.getInstance().onGameState(GmaeModel.Multiplier, this.onRunning, this);
+        GameData.getInstance().onGameState(GmaeModel.Explode, this.onCrashed, this);
+        GameData.getInstance().onGameState(GmaeModel.CrashedCountdown, this.onCrashedCountdown, this);
+        GameData.getInstance().onGameState(GmaeModel.Settled, this.onSettled, this);
 
-        this.betBtn?.node.on(Button.EventType.CLICK, this.onBetClick, this);
-
-        if (!this.cashoutAllBtn) {
-            this.cashoutAllBtn = this.findSceneButton('Canvas/UICamera/UILayer/TopNode/NormalNodeSwitcher/CashoutNode/CashoutBtn')
-                ?? this.findSceneButton('Canvas/UICamera/UILayer/BottomNode/NormalNodeSwitcher/CashoutNode/CashoutBtn');
-        }
-        this.cashoutAllBtn?.node.on(Button.EventType.CLICK, this.onCashoutAllClick, this);
+        this.betBtn.node.on(Button.EventType.CLICK, this.onBetClick, this);
+        this.cashoutAllBtn.node.on(Button.EventType.CLICK, this.onCashoutAllClick, this);
         this.bindAfkControls();
 
-        this.stateSwitcher.switch(ActionState.Crashed);
-        this.actionSwitcher.switch(ActionState.Crashed);
+        this.switchState(ActionState.Crashed);
+        this.switchActionState(ActionState.Crashed);
 
         this.onMaxBetCount(gameData.MaxBetCount);
-        this.onBetOptions(gameData.BetOptions);
+        this.onBetLevels(gameData.BetLevels);
         this.onExistingBets(gameData.ExistingBets);
 
-        if (!this.totalPayoutLabel) {
-            this.totalPayoutLabel = this.findSceneLabel('Canvas/UICamera/UILayer/TotalWinNode/H3-A');
-        }
-        if (!this.totalPayoutParentNode) {
-            this.totalPayoutParentNode = this.findSceneNode('Canvas/UICamera/UILayer/TotalWinNode');
-        }
         this.updateTotalPayoutLabel(null);
         this.updatePlayerCashoutTotalLabel();
         this.refreshCashoutAllButton();
-    }
-
-    protected onDestroy(): void {
-        EventManager.getInstance().gameState.off(GmaeModel.BetOptions, this.onBetOptions, this);
-        EventManager.getInstance().gameState.off(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
-        EventManager.getInstance().gameState.off(GmaeModel.ExistingBets, this.onExistingBets, this);
-        EventManager.getInstance().gameState.off(GmaeModel.BettingCountdown, this.onBetting, this);
-        EventManager.getInstance().gameState.off(GmaeModel.CrashBet, this.onCrashBet, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Cashout, this.onCashout, this);
-        EventManager.getInstance().gameState.off(GmaeModel.CashoutTotalPayout, this.onCashoutTotalPayout, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Multiplier, this.onRunning, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Explode, this.onCrashed, this);
-        EventManager.getInstance().gameState.off(GmaeModel.CrashedCountdown, this.onCrashedCountdown, this);
-        EventManager.getInstance().gameState.off(GmaeModel.Settled, this.onSettled, this);
-        this.betBtn?.node?.off(Button.EventType.CLICK, this.onBetClick, this);
-        this.cashoutAllBtn?.node?.off(Button.EventType.CLICK, this.onCashoutAllClick, this);
-        this.unbindAfkControls();
-        this.clearGeneratedBetNodes();
     }
 
     private onMaxBetCount(maxBetsPerPlayer: number) {
@@ -191,7 +178,7 @@ export class GameStateView extends Component {
         this.onExistingBets(GameData.getInstance().ExistingBets);
     }
 
-    private onBetOptions(_: number[]) {
+    private onBetLevels(_: number[]) {
         this.configureAfkBetUnitsSelector();
     }
 
@@ -212,11 +199,12 @@ export class GameStateView extends Component {
             this.afkBetPlacedThisRound = false;
             this.afkCashoutRequestedThisRound = false;
             this.afkRoundBetIndexes.length = 0;
+            this.lastCountdownSecond = -1;
+            this.playedCountdownSpineSeconds.clear();
         }
 
-        this.stateSwitcher.switch(State.Betting);
-        this.actionSwitcher.switch(ActionState.Betting);
-        this.currentMultiplier = 1;
+        this.switchState(State.Betting);
+        this.switchActionState(ActionState.Betting);
         const seconds = Math.ceil(countdown);
         this.countdownLabel.string = `${seconds}s`;
         this.updateCountdownSpine(seconds);
@@ -229,8 +217,7 @@ export class GameStateView extends Component {
     /** 倒數最後 5 秒：切換 skin = 數字，播一次 animation；同步隱藏 countdownLabel。同一秒不重觸發。 */
     private updateCountdownSpine(seconds: number) {
         if (!this.countdownSpine) return;
-        if (seconds === this.lastCountdownSecond) return;
-        this.lastCountdownSecond = seconds;
+        if (!Number.isFinite(seconds)) return;
 
         const inLastFive = seconds <= 5 && seconds > 0;
         this.countdownSpine.node.active = inLastFive;
@@ -238,10 +225,19 @@ export class GameStateView extends Component {
             this.countdownLabel.node.active = !inLastFive;
         }
 
-        if (inLastFive) {
-            this.countdownSpine.setSkin(String(seconds));
-            this.countdownSpine.setAnimation(0, this.countdownSpineAnimationName, false);
+        if (!inLastFive) {
+            this.lastCountdownSecond = seconds;
+            return;
         }
+
+        if (seconds !== this.lastCountdownSecond) {
+            this.countdownSpine.setSkin(String(seconds));
+            this.lastCountdownSecond = seconds;
+        }
+
+        if (this.playedCountdownSpineSeconds.has(seconds)) return;
+        this.playedCountdownSpineSeconds.add(seconds);
+        this.countdownSpine.setAnimation(0, this.countdownSpineAnimationName, false);
     }
 
     private hideCountdownSpine() {
@@ -270,11 +266,14 @@ export class GameStateView extends Component {
             betIndex: payload.betIndex,
             betAmount: payload.betAmount as unknown as number,
             status: ExistingBetStatus.Pending,
-            autoCashoutMultiplier: payload.autoCashoutMultiplier,
+            cashoutMultiplier: null,
+            payoutGross: null,
+            payoutNet: null,
+            currentProfit: null,
         });
         this.updatePlayerCashoutTotalLabel();
         this.refreshCashoutAllButton();
-        this.tryAfkAutoCashout(this.currentMultiplier);
+        this.tryAfkAutoCashout(GameData.getInstance().Multiplier);
     }
 
     private onCashout(payload: CrashCashoutItemContract) {
@@ -295,8 +294,8 @@ export class GameStateView extends Component {
             status: ExistingBetStatus.CashedOut,
             cashoutMultiplier: payload.cashoutMultiplier,
             payoutGross: payload.payoutGross as unknown as number,
-            serviceFee: payload.serviceFee as unknown as number,
             payoutNet: payload.payoutNet as unknown as number,
+            currentProfit: null,
         });
         this.updatePlayerCashoutTotalLabel();
         this.refreshCashoutAllButton();
@@ -304,12 +303,13 @@ export class GameStateView extends Component {
     }
 
     private onRunning(multiplier: number) {
+        if (GameData.getInstance().RoundState !== RoundState.Running) return;
+
         this.afkBettingRoundOpen = false;
         this.hideCountdownSpine();
-        this.stateSwitcher.switch(State.Running);
-        this.actionSwitcher.switch(ActionState.Running);
-        this.currentMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
-        this.multiplierLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+        this.switchState(State.Running);
+        this.switchActionState(ActionState.Running);
+        this.multiplierLabel.string = `${BaseModel.getFloorStr(multiplier, 2)}x`;
 
         this.betItemViews.forEach((view) => {
             if (!view.node?.active || view.betAmount <= 0 || view.hasCashedOut) {
@@ -319,12 +319,12 @@ export class GameStateView extends Component {
             view.betStateSwitcher?.switch(BetState.Run);
             const gross = multiplier * view.betAmount;
             if (view.runningElapsedLabel) {
-                view.runningElapsedLabel.string = BaseModel.getFormatNumWithSuffix(gross);
+                view.runningElapsedLabel.string = BaseModel.getFloorStr(gross, 2);
             }
         });
         this.updatePlayerCashoutTotalLabel();
         this.refreshCashoutAllButton();
-        this.tryAfkAutoCashout(this.currentMultiplier);
+        this.tryAfkAutoCashout(GameData.getInstance().Multiplier);
     }
 
     private onCrashed(crashPoint: number) {
@@ -334,10 +334,9 @@ export class GameStateView extends Component {
         this.afkRoundBetIndexes.length = 0;
         this.hideCountdownSpine();
 
-        this.stateSwitcher.switch(State.Crashed);
-        this.actionSwitcher.switch(ActionState.Crashed);
-        this.currentMultiplier = Number.isFinite(crashPoint) && crashPoint > 0 ? crashPoint : this.currentMultiplier;
-        this.crashLabel.string = `${BaseModel.getRoundToStr(crashPoint, 2)}x`;
+        this.switchState(State.Crashed);
+        this.switchActionState(ActionState.Crashed);
+        this.crashLabel.string = `${BaseModel.getFloorStr(crashPoint, 2)}x`;
 
         this.betItemViews.forEach((view) => {
             if (!view.node?.active || view.betAmount <= 0 || view.hasCashedOut) {
@@ -361,9 +360,8 @@ export class GameStateView extends Component {
         this.afkRoundBetIndexes.length = 0;
         this.hideCountdownSpine();
 
-        this.stateSwitcher.switch(-1);
-        this.actionSwitcher.switch(-1);
-        this.currentMultiplier = 1;
+        this.switchState(-1);
+        this.switchActionState(-1);
         this.updateTotalPayoutLabel(null);
         this.updatePlayerCashoutTotalLabel();
         this.refreshCashoutAllButton();
@@ -379,7 +377,7 @@ export class GameStateView extends Component {
             this.showError(GameErrorPrompt.AfkActionBlocked);
             return;
         }
-        EventManager.getInstance().audio.emit(AudioModel.PlaySfx, SfxName.BtnBet);
+        GameData.getInstance().emitAudio(AudioModel.PlaySfx, SfxName.BtnBet);
         GameController.getInstance().sendBet();
     }
 
@@ -486,16 +484,15 @@ export class GameStateView extends Component {
         view.betAmount = bet.betAmount;
         view.betIndex = bet.betIndex;
         if (view.betUnitsLabel) {
-            view.betUnitsLabel.string = BaseModel.getFormatNumWithSuffix(bet.betAmount);
+            view.betUnitsLabel.string = BaseModel.getMoneyStr(bet.betAmount);
         }
 
-        const status = bet.status ?? ExistingBetStatus.Pending;
-        const isCashedOut = status === ExistingBetStatus.CashedOut
-            || status === ExistingBetStatus.CashoutPending
-            || typeof bet.cashoutMultiplier === 'number';
+        const isCashedOut = bet.status === ExistingBetStatus.CashedOut
+            || bet.status === ExistingBetStatus.CashoutPending
+            || bet.cashoutMultiplier !== null;
         view.hasCashedOut = isCashedOut;
 
-        if (status === ExistingBetStatus.Lost) {
+        if (bet.status === ExistingBetStatus.Lost) {
             view.betStateSwitcher?.switch(BetState.Lose);
             if (view.runningElapsedLabel) {
                 view.runningElapsedLabel.string = '';
@@ -511,15 +508,13 @@ export class GameStateView extends Component {
 
         if (isCashedOut) {
             view.betStateSwitcher?.switch(BetState.Win);
-            const payoutNet = typeof bet.payoutNet === 'number'
-                ? bet.payoutNet
-                : (typeof bet.payoutGross === 'number' ? bet.payoutGross : null);
+            const payoutNet = bet.payoutNet ?? bet.payoutGross;
             if (view.payoutGrossLabel) {
                 view.payoutGrossLabel.string = this.formatPayoutNet(payoutNet);
             }
             if (view.cashoutMultiplierLabel) {
-                view.cashoutMultiplierLabel.string = typeof bet.cashoutMultiplier === 'number'
-                    ? `${BaseModel.getRoundToStr(bet.cashoutMultiplier, 2)}x`
+                view.cashoutMultiplierLabel.string = bet.cashoutMultiplier !== null
+                    ? `${BaseModel.getFloorStr(bet.cashoutMultiplier, 2)}x`
                     : '';
             }
             if (view.runningElapsedLabel) {
@@ -528,10 +523,10 @@ export class GameStateView extends Component {
             return;
         }
 
-        if (typeof bet.currentProfit === 'number') {
+        if (bet.currentProfit !== null) {
             view.betStateSwitcher?.switch(BetState.Run);
             if (view.runningElapsedLabel) {
-                view.runningElapsedLabel.string = BaseModel.getFormatNumWithSuffix(bet.currentProfit);
+                view.runningElapsedLabel.string = BaseModel.getFloorStr(bet.currentProfit, 2);
             }
             if (view.payoutGrossLabel) {
                 view.payoutGrossLabel.string = '';
@@ -559,7 +554,7 @@ export class GameStateView extends Component {
         if (!view || !view.node?.active || view.betAmount <= 0 || view.hasCashedOut) {
             return;
         }
-        EventManager.getInstance().audio.emit(AudioModel.PlaySfx, SfxName.BtnGet);
+        GameData.getInstance().emitAudio(AudioModel.PlaySfx, SfxName.BtnGet);
         GameController.getInstance().sendCashout(view.betIndex);
     }
 
@@ -568,33 +563,20 @@ export class GameStateView extends Component {
         if (betIndexes.length <= 0) {
             return;
         }
-        EventManager.getInstance().audio.emit(AudioModel.PlaySfx, SfxName.BtnGet);
+        GameData.getInstance().emitAudio(AudioModel.PlaySfx, SfxName.BtnGet);
         GameController.getInstance().sendCashoutAll(betIndexes);
     }
 
     private bindAfkControls() {
-        const betPerRoundNode = this.findSceneNodeByName('AFKBetPerRoundNode');
-        const betNode = this.findSceneNodeByName('AFKBetNode');
-        const autoRoundNode = this.findSceneNodeByName('AFKAutoRoundNode');
-        const autoCashoutNode = this.findSceneNodeByName('AFKAutoCashoutNode');
-        const afkRoot = betPerRoundNode?.parent ?? betNode?.parent ?? autoRoundNode?.parent ?? autoCashoutNode?.parent ?? null;
+        this.afkBetPerRoundSelector = this.afkBetPerRoundNode.getComponentInChildren(NumberSelector);
+        this.afkBetUnitsSelector = this.afkBetNode.getComponentInChildren(NumberSelector);
+        this.afkAutoRoundSelector = this.afkAutoRoundNode.getComponentInChildren(NumberSelector);
 
-        this.afkBetPerRoundSelector = betPerRoundNode?.getComponentInChildren(NumberSelector) ?? null;
-        this.afkBetUnitsSelector = betNode?.getComponentInChildren(NumberSelector) ?? null;
-        this.afkAutoRoundSelector = autoRoundNode?.getComponentInChildren(NumberSelector) ?? null;
-        this.afkAutoCashoutSlider = autoCashoutNode?.getComponentInChildren(Slider) ?? null;
-        this.afkAutoCashoutLabel = this.afkAutoCashoutSlider?.handle?.node?.getComponentInChildren(Label)
-            ?? this.afkAutoCashoutSlider?.node?.getComponentInChildren(Label)
-            ?? null;
-        this.afkStartButton = afkRoot?.getChildByName('Menu-Button-Small')?.getComponent(Button)
-            ?? null;
-        this.afkStartButtonLabel = this.afkStartButton?.node?.getComponentInChildren(Label) ?? null;
-
-        this.afkBetPerRoundSelector?.addValueChangedListener(this.onAfkBetPerRoundChanged, this);
-        this.afkBetUnitsSelector?.addValueChangedListener(this.onAfkBetUnitsChanged, this);
-        this.afkAutoRoundSelector?.addValueChangedListener(this.onAfkAutoRoundChanged, this);
-        this.afkAutoCashoutSlider?.node?.on('slide', this.onAfkAutoCashoutSlide, this);
-        this.afkStartButton?.node?.on(Button.EventType.CLICK, this.onAfkStartClick, this);
+        this.afkBetPerRoundSelector.addValueChangedListener(this.onAfkBetPerRoundChanged, this);
+        this.afkBetUnitsSelector.addValueChangedListener(this.onAfkBetUnitsChanged, this);
+        this.afkAutoRoundSelector.addValueChangedListener(this.onAfkAutoRoundChanged, this);
+        this.afkAutoCashoutSlider.node.on('slide', this.onAfkAutoCashoutSlide, this);
+        this.afkStartButton.node.on(Button.EventType.CLICK, this.onAfkStartClick, this);
 
         this.configureAfkBetPerRoundSelector();
         this.configureAfkBetUnitsSelector();
@@ -604,16 +586,14 @@ export class GameStateView extends Component {
     }
 
     private unbindAfkControls() {
-        this.afkBetPerRoundSelector?.removeValueChangedListener(this.onAfkBetPerRoundChanged, this);
-        this.afkBetUnitsSelector?.removeValueChangedListener(this.onAfkBetUnitsChanged, this);
-        this.afkAutoRoundSelector?.removeValueChangedListener(this.onAfkAutoRoundChanged, this);
-        this.afkAutoCashoutSlider?.node?.off('slide', this.onAfkAutoCashoutSlide, this);
-        this.afkStartButton?.node?.off(Button.EventType.CLICK, this.onAfkStartClick, this);
+        this.afkBetPerRoundSelector.removeValueChangedListener(this.onAfkBetPerRoundChanged, this);
+        this.afkBetUnitsSelector.removeValueChangedListener(this.onAfkBetUnitsChanged, this);
+        this.afkAutoRoundSelector.removeValueChangedListener(this.onAfkAutoRoundChanged, this);
+        this.afkAutoCashoutSlider.node.off('slide', this.onAfkAutoCashoutSlide, this);
+        this.afkStartButton.node.off(Button.EventType.CLICK, this.onAfkStartClick, this);
     }
 
     private configureAfkBetPerRoundSelector() {
-        if (!this.afkBetPerRoundSelector) return;
-
         const maxBetCount = Math.max(1, this.maxBetCount || GameData.getInstance().MaxBetCount || 1);
         const values = Array.from({ length: maxBetCount }, (_, index) => index + 1);
         this.setSelectorValues(this.afkBetPerRoundSelector, values, this.afkBetPerRound);
@@ -621,11 +601,9 @@ export class GameStateView extends Component {
     }
 
     private configureAfkBetUnitsSelector() {
-        if (!this.afkBetUnitsSelector) return;
-
         const gameData = GameData.getInstance();
-        const options = gameData.BetOptions.length > 0
-            ? gameData.BetOptions
+        const options = gameData.BetLevels.length > 0
+            ? gameData.BetLevels
             : [gameData.SelectedBetUnits || this.afkBetUnits || 1];
         const currentValue = this.afkBetUnits > 0
             ? this.afkBetUnits
@@ -636,8 +614,6 @@ export class GameStateView extends Component {
     }
 
     private configureAfkAutoRoundSelector() {
-        if (!this.afkAutoRoundSelector) return;
-
         this.setSelectorValues(this.afkAutoRoundSelector, AFK_AUTO_ROUND_OPTIONS, this.afkAutoRounds);
         this.afkAutoRounds = this.afkAutoRoundSelector.currentValue || this.afkAutoRounds;
     }
@@ -692,7 +668,6 @@ export class GameStateView extends Component {
     }
 
     private onAfkAutoCashoutSlide() {
-        if (!this.afkAutoCashoutSlider) return;
         if (this.afkRunning) {
             this.showError(GameErrorPrompt.AfkActionBlocked);
             this.setAfkAutoCashoutMultiplier(this.afkAutoCashoutMultiplier, true);
@@ -726,28 +701,20 @@ export class GameStateView extends Component {
     }
 
     private syncAfkSettingsFromControls() {
-        if (this.afkBetPerRoundSelector) {
-            this.afkBetPerRound = Math.max(1, Math.floor(this.afkBetPerRoundSelector.currentValue || 1));
-        }
-        if (this.afkBetUnitsSelector) {
-            this.afkBetUnits = Math.max(0, Number(this.afkBetUnitsSelector.currentValue) || 0);
-        }
-        if (this.afkAutoRoundSelector) {
-            this.afkAutoRounds = Math.max(1, Math.floor(this.afkAutoRoundSelector.currentValue || 1));
-        }
-        if (this.afkAutoCashoutSlider) {
-            this.setAfkAutoCashoutMultiplier(
-                this.progressToAfkAutoCashoutMultiplier(this.afkAutoCashoutSlider.progress),
-                false,
-            );
-        }
+        this.afkBetPerRound = Math.max(1, Math.floor(this.afkBetPerRoundSelector.currentValue || 1));
+        this.afkBetUnits = Math.max(0, Number(this.afkBetUnitsSelector.currentValue) || 0);
+        this.afkAutoRounds = Math.max(1, Math.floor(this.afkAutoRoundSelector.currentValue || 1));
+        this.setAfkAutoCashoutMultiplier(
+            this.progressToAfkAutoCashoutMultiplier(this.afkAutoCashoutSlider.progress),
+            false,
+        );
     }
 
     private tryPlaceAfkBets() {
         if (!this.afkRunning || this.afkBetPlacedThisRound || this.afkRemainingRounds <= 0) {
             return;
         }
-        if (GameData.getInstance().RoundState !== 'Betting') {
+        if (GameData.getInstance().RoundState !== RoundState.Betting) {
             return;
         }
 
@@ -798,7 +765,7 @@ export class GameStateView extends Component {
     }
 
     private getPendingAfkCashoutBetIndexes(): number[] {
-        if (GameData.getInstance().RoundState !== 'Running') {
+        if (GameData.getInstance().RoundState !== RoundState.Running) {
             return [];
         }
 
@@ -809,13 +776,10 @@ export class GameStateView extends Component {
 
         return (GameData.getInstance().ExistingBets ?? [])
             .filter((bet) => indexSet.has(bet.betIndex))
-            .filter((bet) => {
-                const status = bet.status ?? ExistingBetStatus.Pending;
-                return status !== ExistingBetStatus.CashedOut
-                    && status !== ExistingBetStatus.CashoutPending
-                    && status !== ExistingBetStatus.Lost
-                    && typeof bet.cashoutMultiplier !== 'number';
-            })
+            .filter((bet) => bet.status !== ExistingBetStatus.CashedOut
+                && bet.status !== ExistingBetStatus.CashoutPending
+                && bet.status !== ExistingBetStatus.Lost
+                && bet.cashoutMultiplier === null)
             .map((bet) => bet.betIndex);
     }
 
@@ -825,7 +789,7 @@ export class GameStateView extends Component {
         }
 
         const gameData = GameData.getInstance();
-        return gameData.SelectedBetUnits || gameData.BetOptions[0] || 0;
+        return gameData.SelectedBetUnits || gameData.BetLevels[0] || 0;
     }
 
     private setAfkAutoCashoutMultiplier(multiplier: number, updateSlider: boolean) {
@@ -835,12 +799,10 @@ export class GameStateView extends Component {
         );
         this.afkAutoCashoutMultiplier = Math.round(normalized * 100) / 100;
 
-        if (updateSlider && this.afkAutoCashoutSlider) {
+        if (updateSlider) {
             this.afkAutoCashoutSlider.progress = this.afkAutoCashoutMultiplierToProgress(this.afkAutoCashoutMultiplier);
         }
-        if (this.afkAutoCashoutLabel) {
-            this.afkAutoCashoutLabel.string = `${BaseModel.getRoundToStr(this.afkAutoCashoutMultiplier, 2)}X`;
-        }
+        this.afkAutoCashoutLabel.string = `${BaseModel.getFloorStr(this.afkAutoCashoutMultiplier, 2)}X`;
     }
 
     private afkAutoCashoutMultiplierToProgress(multiplier: number): number {
@@ -884,51 +846,50 @@ export class GameStateView extends Component {
     }
 
     private updateAfkStartButtonLabel() {
-        if (!this.afkStartButtonLabel) {
-            return;
-        }
         this.afkStartButtonLabel.string = this.afkRunning ? '停止' : '開始';
     }
     private showError(message: GameErrorPrompt | string) {
-        EventManager.getInstance().gameState.emit(GmaeModel.ShowError, { message });
+        GameData.getInstance().emitGameState(GmaeModel.ShowError, { message });
     }
 
     private formatPayoutNet(value: number | null): string {
         if (typeof value !== 'number' || !Number.isFinite(value)) {
             return '';
         }
-        const formatted = BaseModel.getFormatNumWithSuffix(value);
+        const formatted = BaseModel.getMoneyStr(value);
         return value > 0 ? `+${formatted}` : formatted;
     }
 
     private updateTotalPayoutLabel(value: number | null) {
         const hasValue = typeof value === 'number' && Number.isFinite(value);
-        if (this.totalPayoutParentNode) {
-            this.totalPayoutParentNode.active = hasValue;
-        }
-        if (!this.totalPayoutLabel) {
-            return;
-        }
+        this.totalPayoutParentNode.active = hasValue;
         this.totalPayoutLabel.string = hasValue ? this.formatPayoutNet(value) : '';
     }
 
     private updatePlayerCashoutTotalLabel() {
         const total = this.getPlayerCashoutTotal();
-        if (this.playerCashoutTotalLabel) {
-            this.playerCashoutTotalLabel.string = BaseModel.getFormatNumWithSuffix(total);
-        }
+        this.playerCashoutTotalLabel.string = BaseModel.getMoneyStr(total);
 
-        if (GameData.getInstance().RoundState === 'Running' && this.actionSwitcher) {
+        if (GameData.getInstance().RoundState === RoundState.Running) {
             const isZeroTotal = Math.abs(total) < 0.000001;
-            this.actionSwitcher.switch(isZeroTotal ? ActionState.Crashed : ActionState.Running);
+            this.switchActionState(isZeroTotal ? ActionState.Crashed : ActionState.Running);
         }
+    }
+
+    private switchState(index: number) {
+        if (this.stateSwitcher.Index === index) return;
+        this.stateSwitcher.switch(index);
+    }
+
+    private switchActionState(index: number) {
+        if (this.actionSwitcher.Index === index) return;
+        this.actionSwitcher.switch(index);
     }
 
     private getPlayerCashoutTotal(): number {
         const existingBets = GameData.getInstance().ExistingBets ?? [];
-        const multiplier = Number.isFinite(this.currentMultiplier) && this.currentMultiplier > 0
-            ? this.currentMultiplier
-            : 1;
+        // multiplier 由 GameController normalize 後寫入 GameData，view 端直接讀
+        const multiplier = GameData.getInstance().Multiplier;
 
         return existingBets.reduce((sum, bet) => {
             const betAmount = Number(bet?.betAmount);
@@ -936,9 +897,9 @@ export class GameStateView extends Component {
                 return sum;
             }
 
-            const isCashedOut = bet?.status === ExistingBetStatus.CashedOut
-                || bet?.status === ExistingBetStatus.CashoutPending
-                || typeof bet?.cashoutMultiplier === 'number';
+            const isCashedOut = bet.status === ExistingBetStatus.CashedOut
+                || bet.status === ExistingBetStatus.CashoutPending
+                || bet.cashoutMultiplier !== null;
 
             if (isCashedOut) {
                 return sum + this.resolveBetPayout(bet);
@@ -948,24 +909,15 @@ export class GameStateView extends Component {
     }
 
     private resolveBetPayout(bet: ExistingBet): number {
-        if (!bet) {
-            return 0;
-        }
-        if (typeof bet.payoutGross === 'number' && Number.isFinite(bet.payoutGross)) {
-            return bet.payoutGross;
-        }
-        return 0;
+        return bet.payoutGross !== null && Number.isFinite(bet.payoutGross) ? bet.payoutGross : 0;
     }
 
     private refreshCashoutAllButton() {
-        if (!this.cashoutAllBtn) {
-            return;
-        }
         this.cashoutAllBtn.interactable = this.getPendingCashoutBetIndexes().length > 0;
     }
 
     private getPendingCashoutBetIndexes(): number[] {
-        if (GameData.getInstance().RoundState !== 'Running') {
+        if (GameData.getInstance().RoundState !== RoundState.Running) {
             return [];
         }
         return this.betItemViews
@@ -975,52 +927,6 @@ export class GameStateView extends Component {
 
     private findLabel(root: Node, path: string): Label | null {
         return root.getChildByPath(path)?.getComponent(Label) ?? null;
-    }
-
-    private findSceneLabel(path: string): Label | null {
-        const scene = this.node.scene as unknown as Node;
-        if (!scene) {
-            return null;
-        }
-        return scene.getChildByPath(path)?.getComponent(Label) ?? null;
-    }
-
-    private findSceneNode(path: string): Node | null {
-        const scene = this.node.scene as unknown as Node;
-        if (!scene) {
-            return null;
-        }
-        return scene.getChildByPath(path) ?? null;
-    }
-
-    private findSceneNodeByName(name: string): Node | null {
-        const scene = this.node.scene as unknown as Node;
-        if (!scene) {
-            return null;
-        }
-        return this.findNodeByName(scene, name);
-    }
-
-    private findNodeByName(root: Node, name: string): Node | null {
-        if (root.name === name) {
-            return root;
-        }
-
-        for (const child of root.children) {
-            const result = this.findNodeByName(child, name);
-            if (result) {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    private findSceneButton(path: string): Button | null {
-        const scene = this.node.scene as unknown as Node;
-        if (!scene) {
-            return null;
-        }
-        return scene.getChildByPath(path)?.getComponent(Button) ?? null;
     }
 
     private findButton(root: Node, path: string): Button | null {

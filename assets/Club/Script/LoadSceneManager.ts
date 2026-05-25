@@ -11,17 +11,17 @@ import {
     AssetManager,
     SceneAsset
 } from 'cc';
-import { BUILD } from 'cc/env';
-// import { WebsocketManager } from '../../Script/Model/WebsocketManager';
-import { GameData } from '../../Script/Model/GameData';
 import { GameController } from '../../Script/Controller/GameController';
 
 const { ccclass, property } = _decorator;
 
+/**
+ * Bootstrap：bundle + 所有 scene 同時併發下載，進度條顯示合併進度。
+ * 全部資源下載完才呼叫 GameController.connect()；連線成功才開啟 Start 按鈕。
+ */
 @ccclass('LoadSceneManager')
 export class LoadSceneManager extends Component {
     private readonly mainBundleName = 'main';
-    private static readonly LOCALE = 'zh-TW';
 
     @property({ type: ProgressBar })
     private progressBar: ProgressBar = null;
@@ -33,145 +33,89 @@ export class LoadSceneManager extends Component {
     private startBtn: Button = null;
 
     private readonly scenes = ['RoomScene', 'GameScene'];
-    private sceneProgress: number[] = [];
+    /** 單一進度向量：[bundle, ...scenes]；每個元素 0~1，最後平均 = 進度條值。 */
+    private unitProgress: number[] = [];
     private preloadedSceneAssets: (SceneAsset | null)[] = [];
-    private hasRequestedSocketConnect = false;
 
     start() {
         view.resizeWithBrowserSize(true);
         view.setOrientation(macro.ORIENTATION_LANDSCAPE);
         this.startBtn.node.active = false;
         this.startBtn.node.on(Button.EventType.CLICK, this.onStartGame, this);
-        this.preloadScenes();
+        this.bootstrap();
     }
 
-    onDestroy() {
-        this.startBtn?.node?.off(Button.EventType.CLICK, this.onStartGame, this);
-    }
-
-    private preloadScenes() {
-        this.sceneProgress = this.scenes.map(() => 0);
+    private async bootstrap() {
+        // bundle = 1 unit，每個 scene = 1 unit；併發推進共用 unitProgress 向量
+        this.unitProgress = new Array(1 + this.scenes.length).fill(0);
         this.preloadedSceneAssets = this.scenes.map(() => null);
+        this.updateProgress();
 
-        assetManager.loadBundle(this.mainBundleName, (bundleError: Error | null, bundle: AssetManager.Bundle) => {
-            if (bundleError || !bundle) {
-                console.error(`[LoadSceneManager] load bundle failed: ${this.mainBundleName}`, bundleError);
-                return;
-            }
+        try {
+            const bundle = await this.loadBundle(this.mainBundleName, 0);
+            await Promise.all(
+                this.scenes.map((scene, index) => this.loadSceneAsset(bundle, scene, index)),
+            );
+            await GameController.getInstance().connect();
+            await GameController.getInstance().roomList();
+            await GameController.getInstance().walletBalance();
+            this.startBtn.node.active = true;
+        } catch (err) {
+            console.error('[LoadSceneManager] bootstrap failed', err);
+            // TODO: 顯示重試 UI；現在先 log
+        }
+    }
 
-            this.scenes.forEach((scene, index) => {
-                this.preloadSceneAsset(bundle, scene, index);
+    /** 載入 bundle；bundle 沒有 progress callback，完成時直接寫 1。 */
+    private loadBundle(name: string, unitIndex: number): Promise<AssetManager.Bundle> {
+        return new Promise((resolve, reject) => {
+            assetManager.loadBundle(name, (err: Error | null, bundle: AssetManager.Bundle) => {
+                if (err || !bundle) {
+                    reject(err ?? new Error(`load bundle failed: ${name}`));
+                    return;
+                }
+                this.unitProgress[unitIndex] = 1;
+                this.updateProgress();
+                resolve(bundle);
             });
         });
     }
 
-    private preloadSceneAsset(bundle: AssetManager.Bundle, scene: string, index: number) {
-        console.info(`[LoadSceneManager] preload start: ${scene}`);
-
-        bundle.loadScene(
-            scene,
-            (completedCount: number, totalCount: number) => {
-                if (!this.node?.isValid) return;
-                const progress = totalCount > 0 ? completedCount / totalCount : 0;
-                this.sceneProgress[index] = Math.min(Math.max(progress, 0), 1);
-                this.updateProgress();
-            },
-            (error: Error | null, sceneAsset: SceneAsset | null) => {
-                if (!this.node?.isValid) return;
-                if (error || !sceneAsset) {
-                    console.error(`[LoadSceneManager] preload failed: ${scene}`, error);
-                    return;
-                }
-
-                this.preloadedSceneAssets[index] = sceneAsset;
-                this.sceneProgress[index] = 1;
-                this.updateProgress();
-                console.info(`[LoadSceneManager] preload done: ${scene}`);
-                this.checkAllLoaded();
-            }
-        );
+    /** 載入單一 scene；scene 有 progress callback，loading 中持續更新對應 unit。 */
+    private loadSceneAsset(bundle: AssetManager.Bundle, scene: string, sceneIndex: number): Promise<SceneAsset> {
+        const unitIndex = 1 + sceneIndex; // unitProgress[0] 給 bundle
+        return new Promise((resolve, reject) => {
+            bundle.loadScene(
+                scene,
+                (completedCount: number, totalCount: number) => {
+                    if (!this.node?.isValid) return;
+                    const progress = totalCount > 0 ? completedCount / totalCount : 0;
+                    this.unitProgress[unitIndex] = Math.min(Math.max(progress, 0), 1);
+                    this.updateProgress();
+                },
+                (err: Error | null, sceneAsset: SceneAsset | null) => {
+                    if (!this.node?.isValid) return;
+                    if (err || !sceneAsset) {
+                        reject(err ?? new Error(`preload scene failed: ${scene}`));
+                        return;
+                    }
+                    this.preloadedSceneAssets[sceneIndex] = sceneAsset;
+                    this.unitProgress[unitIndex] = 1;
+                    this.updateProgress();
+                    resolve(sceneAsset);
+                },
+            );
+        });
     }
 
+    /** 進度 = unitProgress 平均。 */
     private updateProgress() {
-        if (!this.progressBar || !this.progressLabel || this.scenes.length === 0) {
+        if (!this.progressBar || !this.progressLabel || this.unitProgress.length === 0) {
             return;
         }
-
-        const total = this.sceneProgress.reduce((a, b) => a + b, 0) / this.scenes.length;
+        const total = this.unitProgress.reduce((sum, value) => sum + value, 0) / this.unitProgress.length;
         this.progressBar.progress = total;
         this.progressLabel.string = `${Math.floor(total * 100)}%`;
-    }
-
-    private checkAllLoaded() {
-        if (this.hasRequestedSocketConnect) {
-            return;
-        }
-
-        if (this.sceneProgress.length === this.scenes.length && this.sceneProgress.every((p) => p >= 1)) {
-            this.hasRequestedSocketConnect = true;
-            const started = this.connectWebSocket();
-            if (!started) {
-                this.hasRequestedSocketConnect = false;
-            }
-        }
-    }
-
-    private connectWebSocket(): boolean {
-        const gameData = GameData.getInstance();
-        let wsUrl: string;
-        let token: string;
-
-        if (BUILD && typeof window !== 'undefined') {
-            const config = (window as any).GAME_CONFIG ?? {};
-            const configWsUrl = typeof config.wsUrl === 'string' ? config.wsUrl.trim() : '';
-            const configToken = typeof config.token === 'string' ? config.token.trim() : '';
-
-            if (!configWsUrl || !configToken) {
-                console.error('[LoadSceneManager] BUILD mode requires window.GAME_CONFIG.wsUrl and window.GAME_CONFIG.token');
-                return false;
-            }
-
-            wsUrl = configWsUrl;
-            token = configToken;
-        } else {
-            wsUrl = gameData.FallbackWsUrl;
-            token = gameData.DevToken;
-        }
-
-        // 在 WS 連線前先實例化 GameController，確保 Server* 事件有訂閱者。
-        GameController.getInstance();
-        // WebsocketManager.getInstance().connect(
-        //     this.buildWebSocketUrl(wsUrl, token),
-        //     () => {
-        //         if (this.startBtn?.node?.isValid) {
-        //             this.startBtn.node.active = true;
-        //         }
-        //     },
-        //     (_event: CloseEvent) => {
-        //         // no-op
-        //     }
-        // );
-
-        // WS 已停用 — 直接顯示開始按鈕讓 UI 流程可繼續
-        if (this.startBtn?.node?.isValid) {
-            this.startBtn.node.active = true;
-        }
-
-        return true;
-    }
-
-    private buildWebSocketUrl(wsUrl: string, token: string): string {
-        try {
-            const url = new URL(wsUrl);
-            url.searchParams.set('token', token);
-            url.searchParams.set('locale', LoadSceneManager.LOCALE);
-            return url.toString();
-        } catch {
-            const separator = wsUrl.includes('?')
-                ? (wsUrl.endsWith('?') || wsUrl.endsWith('&') ? '' : '&')
-                : '?';
-            return `${wsUrl}${separator}token=${encodeURIComponent(token)}&locale=${encodeURIComponent(LoadSceneManager.LOCALE)}`;
-        }
     }
 
     private onStartGame() {

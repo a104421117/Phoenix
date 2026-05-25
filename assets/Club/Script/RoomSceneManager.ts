@@ -1,8 +1,7 @@
-import { _decorator, Component, director, instantiate, Node, Prefab } from 'cc';
-import { EventManager } from '../../Script/Model/EventManager';
-import { GmaeModel } from '../../Script/Model/GameModel';
-import { RoomList } from '../../Script/Model/WebsocketModel';
+import { _decorator, Component, director, instantiate, Label, Node, Prefab } from 'cc';
+import { type RoomSummary } from '../../Script/Model/WebSocketManager';
 import { GameController } from '../../Script/Controller/GameController';
+import { GameData } from '../../Script/Model/GameData';
 import { RoomObj } from './RoomObj';
 const { ccclass, property } = _decorator;
 
@@ -12,20 +11,15 @@ export class RoomSceneManager extends Component {
     private roomPrefab: Prefab = null;
     @property({ type: Node })
     private roomLayout: Node = null;
+    @property({ type: Label })
+    private walletLabel: Label = null;
 
     private pool: RoomObj[] = [];
 
     start() {
-        const bus = EventManager.getInstance().gameState;
-        bus.on(GmaeModel.Rooms, this.onRooms, this);
-        bus.on(GmaeModel.RoomJoined, this.onRoomJoined, this);
-        GameController.getInstance().requestRoomList();
-    }
-
-    protected onDestroy(): void {
-        const bus = EventManager.getInstance().gameState;
-        bus.off(GmaeModel.Rooms, this.onRooms, this);
-        bus.off(GmaeModel.RoomJoined, this.onRoomJoined, this);
+        const gameData = GameData.getInstance();
+        this.walletLabel.string = gameData.Wallet.toString();
+        this.showRooms(gameData.Rooms);
     }
 
     private getRoomObj(): RoomObj {
@@ -38,19 +32,16 @@ export class RoomSceneManager extends Component {
         return obj;
     }
 
-    private onRooms(data: RoomList) {
+    private showRooms(rooms: RoomSummary[]) {
         this.pool.forEach(obj => obj.reset());
-        data.rooms.forEach(room => {
+        rooms.forEach(room => {
             const obj = this.getRoomObj();
-            obj.init(room.roomId, room.playerCount, room.maxPlayers, this.onJoinRoom.bind(this));
+            obj.init(room.roomId, room.playerCount, room.maxPlayers, this.chooseRoom.bind(this));
         });
     }
 
-    private onRoomJoined() {
+    private async chooseRoom(roomId: string) {
+        await GameController.getInstance().joinRoom(roomId);
         director.loadScene('GameScene');
-    }
-
-    private onJoinRoom(roomId: string) {
-        GameController.getInstance().joinRoom(roomId);
     }
 }

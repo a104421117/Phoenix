@@ -1,7 +1,7 @@
 import { _decorator, Component, Label, Node, Prefab, instantiate } from 'cc';
 import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
-import { LeaderboardItem as LeaderboardItemData } from '../Model/GameModel';
+import { type CrashLeaderboardItemContract } from '../Model/WebSocketManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('LeaderboardItem')
@@ -52,7 +52,7 @@ export class LeaderboardItem extends Component {
     /** 更新倍數顯示 */
     public setMultiplier(multiplier: number | null | undefined) {
         if (typeof multiplier === 'number' && Number.isFinite(multiplier)) {
-            this.multiplierLabel.string = `${BaseModel.getRoundToStr(multiplier, 2)}x`;
+            this.multiplierLabel.string = `${BaseModel.getFloorStr(multiplier, 2)}x`;
             return;
         }
         this.multiplierLabel.string = '';
@@ -74,12 +74,13 @@ export class LeaderboardItem extends Component {
     }
 
     /** 套用 LeaderboardItem 資料 */
-    public init(item: LeaderboardItemData) {
+    public init(item: CrashLeaderboardItemContract) {
         this.rankLabel.string = `${item.rank}`;
         this.rankSwitcher?.switch(item.rank % 2 === 0 ? 1 : 0);
         this.playerIdLabel.string = item.playerId;
-        this.totalBetLabel.string = BaseModel.getFormatNum(item.totalBet);
-        const profitStr = BaseModel.getFormatNum(item.profit);
+        // SDK wire type：totalBet / profit 是 MoneyDecimal 字串，View 端 Number() 後再 format
+        this.totalBetLabel.string = BaseModel.getFloorStr(Number(item.totalBet), 2);
+        const profitStr = BaseModel.getFloorStr(Number(item.profit), 2);
         this.profitLabel.string = profitStr;
         this.crashedProfitLabel.string = profitStr;
         this.setMultiplier(item.cashoutMultiplier);

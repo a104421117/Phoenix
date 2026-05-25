@@ -1,7 +1,6 @@
 import { _decorator, Button, Label, Node, Tween, UIOpacity, Vec3, director, tween } from 'cc';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
-import { EventManager } from '../Model/EventManager';
-import { GmaeModel } from '../Model/GameModel';
+import { GameData, GmaeModel } from '../Model/GameData';
 
 const { ccclass, property } = _decorator;
 
@@ -11,8 +10,11 @@ type ErrorPopupPayload = {
 
 @ccclass('ErrorPopupView')
 export class ErrorPopupView extends BaseModel.ComponentSingleton {
-    @property({ type: Node, tooltip: 'Popup root node.' })
+    @property({ type: Node, tooltip: 'Popup root node（控制顯示 / 隱藏 active，不做縮放）。' })
     private popupNode: Node = null;
+
+    @property({ type: Node, tooltip: '彈窗縮放動畫的目標 Node（通常是 popupNode 內的內容容器）；未指定則 fallback 用 popupNode。' })
+    private popupScaleNode: Node = null;
 
     @property({ type: UIOpacity, tooltip: 'UIOpacity component on popupNode for fade in/out.' })
     private popupOpacity: UIOpacity = null;
@@ -46,11 +48,11 @@ export class ErrorPopupView extends BaseModel.ComponentSingleton {
             this.confirmBtn.node.on(Button.EventType.CLICK, this.hide, this);
         }
 
-        EventManager.getInstance().gameState.on(GmaeModel.ShowError, this.onShowError, this);
+        GameData.getInstance().onGameState(GmaeModel.ShowError, this.onShowError, this);
     }
 
     onDestroy() {
-        EventManager.getInstance().gameState.off(GmaeModel.ShowError, this.onShowError, this);
+        GameData.getInstance().offGameState(GmaeModel.ShowError, this.onShowError, this);
         if (this.confirmBtn) {
             this.confirmBtn.node.off(Button.EventType.CLICK, this.hide, this);
         }
@@ -62,11 +64,12 @@ export class ErrorPopupView extends BaseModel.ComponentSingleton {
 
     public hide() {
         if (!this.popupNode) return;
+        const scaleNode = this.popupScaleNode ?? this.popupNode;
 
-        Tween.stopAllByTarget(this.popupNode);
+        Tween.stopAllByTarget(scaleNode);
         if (this.popupOpacity) Tween.stopAllByTarget(this.popupOpacity);
 
-        tween(this.popupNode)
+        tween(scaleNode)
             .to(this.hideDuration, { scale: new Vec3(0.96, 0.96, 1) }, { easing: 'quadIn' })
             .start();
 
@@ -78,7 +81,7 @@ export class ErrorPopupView extends BaseModel.ComponentSingleton {
                 })
                 .start();
         } else {
-            tween(this.popupNode)
+            tween(scaleNode)
                 .delay(this.hideDuration)
                 .call(() => {
                     this.popupNode.active = false;
@@ -89,19 +92,20 @@ export class ErrorPopupView extends BaseModel.ComponentSingleton {
 
     private onShowError(payload: ErrorPopupPayload) {
         if (!this.popupNode) return;
+        const scaleNode = this.popupScaleNode ?? this.popupNode;
 
         if (this.messageLabel) {
             this.messageLabel.string = payload.message ?? '';
         }
 
-        Tween.stopAllByTarget(this.popupNode);
+        Tween.stopAllByTarget(scaleNode);
         if (this.popupOpacity) Tween.stopAllByTarget(this.popupOpacity);
 
-        this.popupNode.setScale(0.88, 0.88, 1);
+        scaleNode.setScale(0.88, 0.88, 1);
         if (this.popupOpacity) this.popupOpacity.opacity = 0;
         this.popupNode.active = true;
 
-        tween(this.popupNode)
+        tween(scaleNode)
             .to(this.showScaleUpDuration, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'quadOut' })
             .to(this.showScaleSettleDuration, { scale: new Vec3(1.00, 1.00, 1) }, { easing: 'quadOut' })
             .start();

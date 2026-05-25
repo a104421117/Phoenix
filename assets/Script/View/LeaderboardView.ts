@@ -1,8 +1,8 @@
 import { _decorator, Component, Node, Prefab, instantiate } from 'cc';
 import { GameData } from '../Model/GameData';
-import { GmaeModel, LeaderboardItem as LeaderboardItemData } from '../Model/GameModel';
-import { EventManager } from '../Model/EventManager';
-import { LeaderboardItem as LeaderboardItemComp } from './LeaderboardItem';
+import { GmaeModel } from '../Model/GameData';
+import { type CrashLeaderboardItemContract } from '../Model/WebSocketManager';
+import { LeaderboardItem } from './LeaderboardItem';
 const { ccclass, property } = _decorator;
 
 @ccclass('LeaderboardView')
@@ -15,7 +15,7 @@ export class LeaderboardView extends Component {
     private itemContainer: Node = null;
 
     /** pool 欄位。 */
-    private pool: LeaderboardItemComp[] = [];
+    private pool: LeaderboardItem[] = [];
     /** maxBetCount 欄位。 */
     private maxBetCount: number = 0;
     /** currentInfoState 欄位。 */
@@ -29,12 +29,12 @@ export class LeaderboardView extends Component {
     /** start。 */
     start() {
         const gameData = GameData.getInstance();
-        EventManager.getInstance().gameState.on(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Leaderboard, this.onLeaderboard, this);
-        EventManager.getInstance().gameState.on(GmaeModel.BettingCountdown, this.onBetting, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Multiplier, this.onRunning, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Explode, this.onCrashed, this);
-        EventManager.getInstance().gameState.on(GmaeModel.Settled, this.onSettled, this);
+        GameData.getInstance().onGameState(GmaeModel.MaxBetCount, this.onMaxBetCount, this);
+        GameData.getInstance().onGameState(GmaeModel.Leaderboard, this.onLeaderboard, this);
+        GameData.getInstance().onGameState(GmaeModel.BettingCountdown, this.onBetting, this);
+        GameData.getInstance().onGameState(GmaeModel.Multiplier, this.onRunning, this);
+        GameData.getInstance().onGameState(GmaeModel.Explode, this.onCrashed, this);
+        GameData.getInstance().onGameState(GmaeModel.Settled, this.onSettled, this);
 
         this.maxBetCount = gameData.MaxBetCount;
     }
@@ -90,7 +90,7 @@ export class LeaderboardView extends Component {
      * onLeaderboard。
      * @param leaderboard leaderboard
      */
-    private onLeaderboard(leaderboard: LeaderboardItemData[]) {
+    private onLeaderboard(leaderboard: CrashLeaderboardItemContract[]) {
         const source = Array.isArray(leaderboard) ? leaderboard : [];
         const topLeaderboard = source.slice(0, LeaderboardView.MAX_DISPLAY_COUNT);
         this.pool.forEach((obj) => obj.reset());
@@ -108,12 +108,12 @@ export class LeaderboardView extends Component {
      * @param container container
      * @returns getItem 回傳值
      */
-    private getItem(container: Node): LeaderboardItemComp {
+    private getItem(container: Node): LeaderboardItem {
         const idle = this.pool.find((obj) => !obj.node.active);
         if (idle) return idle;
 
         const node = instantiate(this.itemPrefab);
-        const obj = node.getComponent(LeaderboardItemComp);
+        const obj = node.getComponent(LeaderboardItem);
         obj.buildStatusSlots(this.maxBetCount);
         container.addChild(node);
         this.pool.push(obj);
