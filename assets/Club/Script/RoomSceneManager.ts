@@ -1,5 +1,5 @@
 import { _decorator, Component, director, instantiate, Label, Node, Prefab } from 'cc';
-import { type RoomSummary } from '../../Script/Model/WebSocketManager';
+import { type RoomSummary } from '../../Script/Model/WebsocketManager';
 import { GameController } from '../../Script/Controller/GameController';
 import { GameData } from '../../Script/Model/GameData';
 import { RoomObj } from './RoomObj';

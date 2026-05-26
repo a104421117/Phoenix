@@ -128,7 +128,7 @@
             "_value": true
           },
           "webview": {
-            "_value": true
+            "_value": false
           },
           "tween": {
             "_value": true
@@ -218,8 +218,7 @@
           "tiled-map",
           "tween",
           "ui",
-          "video",
-          "webview"
+          "video"
         ],
         "noDeprecatedFeatures": {
           "value": false,

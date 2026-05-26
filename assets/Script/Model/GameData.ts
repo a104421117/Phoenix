@@ -1,11 +1,10 @@
-import { BUILD } from 'cc/env';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import type {
     CrashHistoryDistributionItemContract,
     CrashLeaderboardItemContract,
     CrashMultiplierCurvePointContract,
     RoomSummary,
-} from './WebSocketManager';
+} from './WebsocketManager';
 import type { AudioModel, AudioModelMap } from './AudioModel';
 
 type RoundHistoryUpdateSource = 'sync' | 'push';
@@ -83,7 +82,6 @@ type UntypedGameState = Exclude<GmaeModel, TypedGameState>;
 type GameStateEventMap = Record<GmaeModel, any> & GmaeModelMap;
 
 export class GameData extends BaseModel.Singleton {
-    private static readonly BET_HISTORY_URL_DEV: string = 'http://127.0.0.1:5500/';
     // private static readonly FALLBACK_WS_URL_DEV: string = 'ws://localhost:20001/connect';
     private static readonly FALLBACK_WS_URL_DEV: string = 'wss://dev-game.jutechs.com/connect';
     private static readonly DEV_TOKEN: string = 'phoenix-test-e15bcb2770924204b8fc643b99af560d';
@@ -113,15 +111,6 @@ export class GameData extends BaseModel.Singleton {
     private isCrashed: boolean = false;
     private lastRoundHistoryUpdateSource: RoundHistoryUpdateSource = 'sync';
     private currencyScale: number = 2;
-
-    public get BetHistoryUrl(): string {
-        if (BUILD && typeof window !== 'undefined') {
-            const config = (window as any).GAME_CONFIG ?? {};
-            const configUrl = typeof config.betHistoryUrl === 'string' ? config.betHistoryUrl.trim() : '';
-            if (configUrl) return configUrl;
-        }
-        return GameData.BET_HISTORY_URL_DEV;
-    }
 
     public get FallbackWsUrl(): string { return GameData.FALLBACK_WS_URL_DEV; }
     public get DevToken(): string { return GameData.DEV_TOKEN; }

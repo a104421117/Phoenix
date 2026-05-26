@@ -4,7 +4,7 @@ import { NumberSelector } from '../../Game.Client.Common/NumberSelector';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import { GameData } from '../Model/GameData';
 import { GmaeModel, ExistingBet, ExistingBetStatus, GameErrorPrompt, RoundState } from '../Model/GameData';
-import { type CrashBetItemContract, type CrashCashoutItemContract } from '../Model/WebSocketManager';
+import { type CrashBetItemContract, type CrashCashoutItemContract } from '../Model/WebsocketManager';
 import { GameController } from '../Controller/GameController';
 import { AudioModel, SfxName } from '../Model/AudioModel';
 

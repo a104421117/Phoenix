@@ -38,7 +38,7 @@ import {
     type JoinRoomResponse,
     type LeaveRoomResponse,
     type RoomListResponse,
-} from '../Model/WebSocketManager';
+} from '../Model/WebsocketManager';
 import {
     ExistingBet,
     ExistingBetStatus,
@@ -74,6 +74,10 @@ export class GameController extends BaseModel.Singleton {
         if (!config) throw new Error('[GameController] WS config not available');
         await WebSocketManager.getInstance().connect(config.wsUrl, config.token);
         this.bindServerPushes();
+    }
+
+    public get PlayerToken(): string {
+        return this.resolveWsConfig()?.token ?? '';
     }
 
     /** 訂閱所有 server push opcodes；request 的回應由各 send* 方法直接 await 處理，不走這條路徑。 */

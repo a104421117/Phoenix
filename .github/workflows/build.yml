@@ -24,31 +24,22 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $fixedDevWsUrl = "wss://dev-game.jutechs.com/connect"
-          $fixedDevWebViewUrl = "http://127.0.0.1:5500/"
           $fixedStageWsUrl = ""
-          $fixedStageWebViewUrl = ""
           $fixedProdWsUrl = ""
-          $fixedProdWebViewUrl = ""
           Write-Host "Current tag: $tag"
 
           if ($tag -match '^dev-\d+\.\d+\.\d+$') {
             $deployEnv = "dev"
             $wsUrl = $fixedDevWsUrl
-            $webViewUrl = $fixedDevWebViewUrl
             Write-Host "Use fixed dev WS URL: $wsUrl"
-            Write-Host "Use fixed dev WebView URL: $webViewUrl"
           } elseif ($tag -match '^stage-\d+\.\d+\.\d+$') {
             $deployEnv = "stage"
             $wsUrl = $fixedStageWsUrl
-            $webViewUrl = $fixedStageWebViewUrl
             Write-Host "Use fixed stage WS URL: $wsUrl"
-            Write-Host "Use fixed stage WebView URL: $webViewUrl"
           } elseif ($tag -match '^prod-\d+\.\d+\.\d+$') {
             $deployEnv = "prod"
             $wsUrl = $fixedProdWsUrl
-            $webViewUrl = $fixedProdWebViewUrl
             Write-Host "Use fixed prod WS URL: $wsUrl"
-            Write-Host "Use fixed prod WebView URL: $webViewUrl"
           } else {
             Write-Error "Invalid tag format: $tag. Expected dev-x.x.x / stage-x.x.x / prod-x.x.x"
             exit 1
@@ -59,16 +50,9 @@ jobs:
             exit 1
           }
 
-          if ([string]::IsNullOrWhiteSpace($webViewUrl)) {
-            Write-Error "WebView URL for environment '$deployEnv' is empty. Please set fixed URL in .github/workflows/build.yml"
-            exit 1
-          }
-
           $wsUrl = $wsUrl.Trim()
-          $webViewUrl = $webViewUrl.Trim()
           "DEPLOY_ENV=$deployEnv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GAME_WS_URL=$wsUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GAME_WEBVIEW_URL=$webViewUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Resolved DEPLOY_ENV=$deployEnv"
 
       - name: Setup Node.js
@@ -167,13 +151,6 @@ jobs:
             $wsUrl = $wsUrl.Trim()
           }
 
-          $webViewUrl = $env:GAME_WEBVIEW_URL
-          if ([string]::IsNullOrWhiteSpace($webViewUrl)) {
-            $webViewUrl = ""
-          } else {
-            $webViewUrl = $webViewUrl.Trim()
-          }
-
           $tag = "${{ github.ref_name }}"
           $version = $tag
           if ($tag -match '^(dev|stage|prod)-(\d+\.\d+\.\d+)$') {
@@ -184,7 +161,6 @@ jobs:
             version = $version
             deployEnv = $env:DEPLOY_ENV
             wsUrl = $wsUrl
-            webViewUrl = $webViewUrl
             generatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           }
 

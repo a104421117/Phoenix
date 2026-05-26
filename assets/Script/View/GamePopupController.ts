@@ -1,6 +1,15 @@
-import { _decorator, Button, Component, Node, WebView, director, log, warn } from 'cc';
+import {
+    _decorator,
+    Button,
+    Color,
+    Component,
+    director,
+    instantiate,
+    Label,
+    Node,
+    ScrollView,
+} from 'cc';
 import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
-import { GameData } from '../Model/GameData';
 import { GameController } from '../Controller/GameController';
 
 const { ccclass, property } = _decorator;
@@ -21,8 +30,21 @@ type ButtonBinding = {
     handler: () => void;
 };
 
+type ReplayHistoryRow = {
+    time: string;
+    orderNo: string;
+    cashoutMultiplier: string;
+    betAmount: string;
+    profit: string;
+    profitValue: number | null;
+};
+
 @ccclass('GamePopupController')
 export class GamePopupController extends Component {
+    private static readonly REPLAY_HISTORY_URL = 'https://dev-replay.jutechs.com/replay/history?gameCode=phoenix&limit=100';
+    private static readonly PROFIT_COLOR = new Color(245, 213, 98, 255);
+    private static readonly LOSS_COLOR = new Color(196, 91, 88, 255);
+
     @property({ type: NodeSwitcher })
     private popupsSwitcher: NodeSwitcher = null;
 
@@ -35,15 +57,17 @@ export class GamePopupController extends Component {
     @property({ type: Button })
     private betHistoryOpenButton: Button = null;
 
-    @property({ type: WebView })
-    private betHistoryWebView: WebView = null;
+    @property({ type: ScrollView })
+    private betHistoryScrollView: ScrollView = null;
 
     @property({ type: Node })
-    private betHistoryLoadingNode: Node = null;
-    private betHistoryUrl: string = '';
+    private betHistoryRowsContent: Node = null;
 
-    @property
-    private betHistoryBridgeScheme: string = 'phoenix';
+    @property({ type: Node })
+    private betHistoryRowTemplate: Node = null;
+
+    @property({ type: Label })
+    private betHistoryStatusLabel: Label = null;
 
     @property({ type: Button })
     private audioOpenButton: Button = null;
@@ -67,12 +91,8 @@ export class GamePopupController extends Component {
     private backToLobbyButton: Button = null;
 
     private initialized: boolean = false;
-    private betHistoryWebViewEventsBound: boolean = false;
-    private betHistoryJsBridgeBound: boolean = false;
-    private betHistoryWindowMessageBound: boolean = false;
-    private betHistoryJsCallback: ((raw: string) => void) | null = null;
-    private betHistoryWindowMessageHandler: ((event: MessageEvent) => void) | null = null;
     private buttonBindings: ButtonBinding[] = [];
+    private betHistoryFetching: boolean = false;
 
     start() {
         this.initialize();
@@ -83,23 +103,15 @@ export class GamePopupController extends Component {
     }
 
     protected onDisable(): void {
-        this.unbindBetHistoryWebViewEvents();
-        this.unbindBetHistoryJsBridge();
-        this.unbindBetHistoryWindowMessage();
-        this.setBetHistoryLoadingVisible(false);
         this.closeAll();
         this.unbindAllButtons();
         this.initialized = false;
     }
 
     protected onDestroy(): void {
-        this.unbindBetHistoryWebViewEvents();
-        this.unbindBetHistoryJsBridge();
-        this.unbindBetHistoryWindowMessage();
         this.unbindAllButtons();
     }
 
-    /** ?豲??謘????秋撒?????蹍bView ?哨?颲???????銋?*/
     public initialize() {
         if (this.initialized) {
             return;
@@ -110,22 +122,12 @@ export class GamePopupController extends Component {
             return;
         }
 
-        this.applyRuntimeConfig();
-        this.bindBetHistoryWebViewEvents();
-        this.bindBetHistoryJsBridge();
-        this.bindBetHistoryWindowMessage();
-        this.setBetHistoryLoadingVisible(false);
-
         const seen = new Set<Node>();
         this.bindOpenButtons(seen);
         this.bindCloseButtons(seen);
         this.bindBackToLobbyButton(seen);
         this.closeAll();
         this.initialized = true;
-    }
-
-    private applyRuntimeConfig() {
-        this.betHistoryUrl = GameData.getInstance().BetHistoryUrl.trim();
     }
 
     private ensureSwitcher() {
@@ -187,305 +189,9 @@ export class GamePopupController extends Component {
         this.buttonBindings.length = 0;
     }
 
-    private bindBetHistoryWebViewEvents() {
-        if (this.betHistoryWebViewEventsBound || !this.betHistoryWebView?.node) return;
-        this.betHistoryWebView.node.on(WebView.EventType.LOADING, this.onBetHistoryWebViewLoading, this);
-        this.betHistoryWebView.node.on(WebView.EventType.LOADED, this.onBetHistoryWebViewLoaded, this);
-        this.betHistoryWebView.node.on(WebView.EventType.ERROR, this.onBetHistoryWebViewError, this);
-        this.betHistoryWebViewEventsBound = true;
-    }
-
-    private unbindBetHistoryWebViewEvents() {
-        if (!this.betHistoryWebViewEventsBound || !this.betHistoryWebView?.node) return;
-        this.betHistoryWebView.node.off(WebView.EventType.LOADING, this.onBetHistoryWebViewLoading, this);
-        this.betHistoryWebView.node.off(WebView.EventType.LOADED, this.onBetHistoryWebViewLoaded, this);
-        this.betHistoryWebView.node.off(WebView.EventType.ERROR, this.onBetHistoryWebViewError, this);
-        this.betHistoryWebViewEventsBound = false;
-    }
-
-    /** ?秋撒? WebView ?賹? JS ?????逮tOnJSCallback???*/
-    private bindBetHistoryJsBridge() {
-        if (this.betHistoryJsBridgeBound || !this.betHistoryWebView) return;
-
-        const webViewAny = this.betHistoryWebView as any;
-        const scheme = this.betHistoryBridgeScheme.trim();
-        if (scheme && typeof webViewAny.setJavascriptInterfaceScheme === 'function') {
-            webViewAny.setJavascriptInterfaceScheme(scheme);
-        }
-
-        if (typeof webViewAny.setOnJSCallback === 'function') {
-            this.betHistoryJsCallback = this.betHistoryJsCallback ?? ((raw: string) => this.onBetHistoryWebViewMessage(raw));
-            webViewAny.setOnJSCallback(this.betHistoryJsCallback);
-            this.betHistoryJsBridgeBound = true;
-        }
-    }
-
-    /** ?秋撒???? window message????iframe/postMessage ?殷?蹓??*/
-    private bindBetHistoryWindowMessage() {
-        if (this.betHistoryWindowMessageBound) return;
-        if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
-
-        this.betHistoryWindowMessageHandler = this.betHistoryWindowMessageHandler
-            ?? ((event: MessageEvent) => this.onBetHistoryWindowMessage(event));
-        window.addEventListener('message', this.betHistoryWindowMessageHandler as EventListener);
-        this.betHistoryWindowMessageBound = true;
-    }
-
-    private unbindBetHistoryJsBridge() {
-        if (!this.betHistoryJsBridgeBound || !this.betHistoryWebView) return;
-        const webViewAny = this.betHistoryWebView as any;
-        if (typeof webViewAny.setOnJSCallback === 'function') {
-            webViewAny.setOnJSCallback(null);
-        }
-        this.betHistoryJsBridgeBound = false;
-    }
-
-    private unbindBetHistoryWindowMessage() {
-        if (!this.betHistoryWindowMessageBound) return;
-        if (typeof window === 'undefined' || typeof window.removeEventListener !== 'function') return;
-        if (!this.betHistoryWindowMessageHandler) return;
-
-        window.removeEventListener('message', this.betHistoryWindowMessageHandler as EventListener);
-        this.betHistoryWindowMessageBound = false;
-    }
-
-    private onBetHistoryOpenClick() {
-        this.openPopup(PopupIndex.BetHistory);
-        this.openBetHistoryWebPage();
-    }
-
-    /** ?????????????????????????伍瘣?鞈?????怨?謒芷????哨?颲??*/
-    private openBetHistoryWebPage() {
-        const url = this.betHistoryUrl.trim();
-        if (!this.betHistoryWebView || !url) {
-            warn('[GamePopupController] BetHistory WebView/url not set, close BetHistory popup.');
-            this.setBetHistoryLoadingVisible(false);
-            this.closeBetHistoryPopup();
-            return;
-        }
-
-        this.betHistoryWebView.node.active = true;
-        this.betHistoryWebView.enabled = true;
-        this.prepareBetHistoryWebViewInput();
-        this.setBetHistoryLoadingVisible(true);
-        this.betHistoryWebView.url = '';
-        this.scheduleOnce(() => {
-            if (!this.betHistoryWebView) return;
-            this.betHistoryWebView.url = url;
-            this.prepareBetHistoryWebViewInput();
-        }, 0);
-    }
-
-    private onBetHistoryWebViewLoading(_: WebView, url?: string) {
-        if (this.tryHandleBetHistoryBridgeUrl(url)) {
-            return;
-        }
-        this.setBetHistoryLoadingVisible(true);
-    }
-
-    private onBetHistoryWebViewLoaded() {
-        this.setBetHistoryLoadingVisible(false);
-        this.injectBetHistoryPostMessageForwarder();
-        this.prepareBetHistoryWebViewInput();
-    }
-
-    private onBetHistoryWebViewError() {
-        this.setBetHistoryLoadingVisible(false);
-        this.closeBetHistoryPopup();
-    }
-
-    private onBetHistoryWindowMessage(event: MessageEvent) {
-        const accepted = this.isBetHistoryMessageOrigin(event.origin);
-        log('[GamePopupController] BetHistory window.message origin:', event.origin, 'accepted:', accepted, 'data:', event.data);
-        if (!accepted) {
-            return;
-        }
-        this.onBetHistoryWebViewMessage(event.data);
-    }
-
-    public onBetHistoryWebViewMessage(raw: unknown) {
-        log('[GamePopupController] BetHistory JS callback message:', raw);
-        this.tryHandleBetHistoryPayload(raw);
-    }
-
-    private tryHandleBetHistoryBridgeUrl(url?: string): boolean {
-        if (!url) return false;
-        const scheme = this.betHistoryBridgeScheme.trim();
-        if (!scheme) return false;
-        const prefix = `${scheme}://`;
-        if (!url.startsWith(prefix)) return false;
-
-        const rawPayload = decodeURIComponent(url.slice(prefix.length));
-        return this.tryHandleBetHistoryPayload(rawPayload);
-    }
-
-    private tryHandleBetHistoryPayload(raw: unknown): boolean {
-        const data = this.parseBetHistoryPayload(raw);
-        log('[GamePopupController] BetHistory parsed payload:', data);
-        if (!data || data.type !== 'close') return false;
-
-        this.setBetHistoryLoadingVisible(false);
-        this.closeBetHistoryPopup();
-        return true;
-    }
-
-    private parseBetHistoryPayload(raw: unknown): { type?: string } | null {
-        if (raw && typeof raw === 'object') {
-            const obj = raw as Record<string, unknown>;
-            if (typeof obj.type === 'string') {
-                return obj as { type?: string };
-            }
-            if ('data' in obj) {
-                return this.parseBetHistoryPayload(obj.data);
-            }
-            if ('payload' in obj) {
-                return this.parseBetHistoryPayload(obj.payload);
-            }
-            return null;
-        }
-        if (typeof raw !== 'string') return null;
-        const text = raw.trim();
-        if (!text) return null;
-        try {
-            return JSON.parse(text) as { type?: string };
-        } catch {
-            return null;
-        }
-    }
-
-    private isBetHistoryMessageOrigin(origin: string): boolean {
-        if (!origin || origin === 'null') {
-            return true;
-        }
-        const expectedOrigin = this.getBetHistoryOrigin();
-        if (!expectedOrigin) return true;
-        return origin === expectedOrigin;
-    }
-
-    private getBetHistoryOrigin(): string | null {
-        const url = this.betHistoryUrl.trim();
-        if (!url || typeof window === 'undefined' || !window?.location?.href) {
-            return null;
-        }
-        try {
-            return new URL(url, window.location.href).origin;
-        } catch {
-            return null;
-        }
-    }
-
-    private injectBetHistoryPostMessageForwarder() {
-        if (!this.betHistoryWebView) return;
-        const scheme = this.betHistoryBridgeScheme.trim();
-        if (!scheme) return;
-        if (!this.canInjectBetHistoryForwarder()) {
-            return;
-        }
-
-        const webViewAny = this.betHistoryWebView as any;
-        if (typeof webViewAny.evaluateJS !== 'function') return;
-
-        const script = `
-            (function () {
-                if (window.__phoenixPostMessageForwarderInstalled) return;
-                window.__phoenixPostMessageForwarderInstalled = true;
-                var scheme = ${JSON.stringify(scheme)};
-                window.addEventListener('message', function (event) {
-                    try {
-                        var raw = event ? event.data : null;
-                        var payload = typeof raw === 'string' ? raw : JSON.stringify(raw);
-                        if (!payload) return;
-                        window.location.href = scheme + '://' + encodeURIComponent(payload);
-                    } catch (e) {
-                        // ?寡???伍赤??芰??蹓???????嚗???                    }
-                }, false);
-            })();
-        `;
-        try {
-            webViewAny.evaluateJS(script);
-        } catch (error) {
-            warn('[GamePopupController] WebView evaluateJS failed:', error);
-        }
-    }
-
-    private canInjectBetHistoryForwarder(): boolean {
-        if (typeof window === 'undefined' || !window?.location?.href) {
-            return true;
-        }
-
-        const targetUrl = this.betHistoryWebView?.url?.trim();
-        if (!targetUrl) return false;
-
-        try {
-            const targetOrigin = new URL(targetUrl, window.location.href).origin;
-            return targetOrigin === window.location.origin;
-        } catch {
-            return false;
-        }
-    }
-
-    /** ??WebView DOM ???????????橫??? Cocos UI ??????????綜等???*/
-    private prepareBetHistoryWebViewInput() {
-        if (!this.betHistoryWebView?.node) {
-            return;
-        }
-
-        const webViewNode = this.betHistoryWebView.node;
-        const parent = webViewNode.parent;
-        if (parent) {
-            webViewNode.setSiblingIndex(parent.children.length - 1);
-        }
-
-        const element = this.getBetHistoryWebElement();
-        if (!element) {
-            return;
-        }
-
-        element.style.pointerEvents = 'auto';
-        element.style.zIndex = '2147483646';
-        if (element.parentElement) {
-            element.parentElement.style.pointerEvents = 'auto';
-            element.parentElement.style.zIndex = '2147483646';
-        }
-    }
-
-    private getBetHistoryWebElement(): HTMLElement | null {
-        const webViewAny = this.betHistoryWebView as any;
-        const impl = webViewAny?._impl;
-        const candidates = [
-            impl?._iframe,
-            impl?._webview,
-            impl?._webviewElement,
-            webViewAny?._iframe,
-            webViewAny?._webview,
-        ];
-
-        for (const candidate of candidates) {
-            if (candidate && typeof candidate === 'object' && 'style' in candidate) {
-                return candidate as HTMLElement;
-            }
-        }
-
-        return null;
-    }
-
-    private setBetHistoryLoadingVisible(visible: boolean) {
-        if (!this.betHistoryLoadingNode) return;
-        this.betHistoryLoadingNode.active = visible;
-    }
-
-    private closeBetHistoryPopup() {
-        if (this.popupsSwitcher?.Index === PopupIndex.BetHistory) {
-            this.popupsSwitcher.switch(-1);
-        }
-    }
-
     private openPopup(index: number) {
         if (!this.popupsSwitcher) {
             return;
-        }
-        if (index !== PopupIndex.BetHistory) {
-            this.setBetHistoryLoadingVisible(false);
         }
         this.popupsSwitcher.switch(index);
     }
@@ -494,12 +200,280 @@ export class GamePopupController extends Component {
         if (!this.popupsSwitcher) {
             return;
         }
-        this.setBetHistoryLoadingVisible(false);
         this.popupsSwitcher.switch(-1);
     }
 
-    /** ?蹓鳴 room.leave???賹?擗?? RoomScene??*/
-    /** 觸發 room.leave 並切回 RoomScene；先 navigate 再 emit，room.leave 推播由 RoomSceneManager 接。 */
+    private async onBetHistoryOpenClick() {
+        this.openPopup(PopupIndex.BetHistory);
+        await this.loadBetHistory();
+    }
+
+    private async loadBetHistory() {
+        if (this.betHistoryFetching) {
+            return;
+        }
+
+        this.assertBetHistoryBindings();
+        this.betHistoryFetching = true;
+        this.clearBetHistoryRows();
+        this.setBetHistoryStatus('載入中...');
+
+        try {
+            const token = GameController.getInstance().PlayerToken;
+            if (!token) {
+                throw new Error('[GamePopupController.loadBetHistory] missing player token');
+            }
+
+            const response = await fetch(GamePopupController.REPLAY_HISTORY_URL, {
+                method: 'GET',
+                headers: {
+                    'X-Player-Token': token,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`[GamePopupController.loadBetHistory] replay history http ${response.status}`);
+            }
+
+            const raw = await response.json();
+            const rows = this.normalizeReplayHistory(raw).slice(0, 100);
+            this.renderBetHistoryRows(rows);
+            this.setBetHistoryStatus(rows.length > 0 ? '' : '暫無歷史紀錄');
+        } catch (error) {
+            console.error('[GamePopupController.loadBetHistory] failed', error);
+            this.setBetHistoryStatus('歷史紀錄載入失敗');
+        } finally {
+            this.betHistoryFetching = false;
+        }
+    }
+
+    private assertBetHistoryBindings() {
+        if (!this.betHistoryRowsContent) {
+            throw new Error('[GamePopupController] betHistoryRowsContent is not assigned');
+        }
+        if (!this.betHistoryRowTemplate) {
+            throw new Error('[GamePopupController] betHistoryRowTemplate is not assigned');
+        }
+        this.betHistoryRowTemplate.active = false;
+    }
+
+    private clearBetHistoryRows() {
+        const template = this.betHistoryRowTemplate;
+        const children = [...this.betHistoryRowsContent.children];
+        children.forEach((child) => {
+            if (child !== template) {
+                child.destroy();
+            }
+        });
+        template.active = false;
+    }
+
+    private setBetHistoryStatus(message: string) {
+        if (!this.betHistoryStatusLabel) {
+            return;
+        }
+        this.betHistoryStatusLabel.string = message;
+        this.betHistoryStatusLabel.node.active = message.length > 0;
+    }
+
+    private renderBetHistoryRows(rows: ReplayHistoryRow[]) {
+        rows.forEach((row) => {
+            const rowNode = instantiate(this.betHistoryRowTemplate);
+            rowNode.parent = this.betHistoryRowsContent;
+            rowNode.active = true;
+            this.applyBetHistoryRow(rowNode, row);
+        });
+        this.betHistoryScrollView?.scrollToTop(0);
+    }
+
+    private applyBetHistoryRow(rowNode: Node, row: ReplayHistoryRow) {
+        this.setRowLabel(rowNode, ['timeOrderLabel', 'TimeOrderLabel', 'timeLabel', 'TimeLabel'], `${row.time}\n${row.orderNo}`);
+        const multiplierLabel = this.setRowLabel(rowNode, [
+            'cashoutMultiplierLabel',
+            'CashoutMultiplierLabel',
+            'collectTimeLabel',
+            'CollectTimeLabel',
+            'multiplierLabel',
+            'MultiplierLabel',
+        ], row.cashoutMultiplier);
+        this.setRowLabel(rowNode, ['betAmountLabel', 'BetAmountLabel', 'amountLabel', 'AmountLabel'], row.betAmount);
+        const profitLabel = this.setRowLabel(rowNode, ['profitLabel', 'ProfitLabel', 'payoutLabel', 'PayoutLabel'], row.profit);
+
+        const resultColor = row.profitValue !== null && row.profitValue < 0
+            ? GamePopupController.LOSS_COLOR
+            : GamePopupController.PROFIT_COLOR;
+        multiplierLabel.color = resultColor;
+        profitLabel.color = resultColor;
+    }
+
+    private setRowLabel(rowNode: Node, labelNames: string[], value: string): Label {
+        const label = this.findLabel(rowNode, labelNames);
+        label.string = value;
+        return label;
+    }
+
+    private findLabel(root: Node, labelNames: string[]): Label {
+        const node = this.findChildByNames(root, labelNames);
+        const label = node?.getComponent(Label);
+        if (!label) {
+            throw new Error(`[GamePopupController] missing row label: ${labelNames.join(' / ')}`);
+        }
+        return label;
+    }
+
+    private findChildByNames(root: Node, names: string[]): Node | null {
+        const targets = new Set(names);
+        const stack = [...root.children];
+        while (stack.length > 0) {
+            const node = stack.shift();
+            if (!node) {
+                continue;
+            }
+            if (targets.has(node.name)) {
+                return node;
+            }
+            stack.push(...node.children);
+        }
+        return null;
+    }
+
+    private normalizeReplayHistory(raw: any): ReplayHistoryRow[] {
+        return this.extractHistoryArray(raw)
+            .map((item) => this.normalizeReplayHistoryItem(item))
+            .filter((item) => item !== null) as ReplayHistoryRow[];
+    }
+
+    private normalizeReplayHistoryItem(item: any): ReplayHistoryRow | null {
+        if (!item || typeof item !== 'object') {
+            return null;
+        }
+
+        const time = this.formatDate(this.pickFirst(item, [
+            'createdAt',
+            'createdTime',
+            'betTime',
+            'settledAt',
+            'time',
+            'timestamp',
+            'created_at',
+        ]));
+        const orderNo = this.formatText(this.pickFirst(item, [
+            'orderNo',
+            'orderId',
+            'betOrderNo',
+            'betId',
+            'transactionId',
+            'id',
+        ]));
+        const multiplierValue = this.toNumber(this.pickFirst(item, [
+            'cashoutMultiplier',
+            'settleMultiplier',
+            'collectMultiplier',
+            'multiplier',
+            'crashPoint',
+            'odds',
+        ]));
+        const betAmount = this.pickFirst(item, ['betAmount', 'amount', 'stake', 'wager', 'bet']);
+        const profitRaw = this.pickFirst(item, [
+            'profit',
+            'profitLoss',
+            'winLoss',
+            'totalPayout',
+            'netPayout',
+            'payoutNet',
+            'payout',
+            'payoutGross',
+            'winAmount',
+        ]);
+        const profitValue = this.toNumber(profitRaw);
+
+        return {
+            time,
+            orderNo,
+            cashoutMultiplier: multiplierValue === null ? '-' : `${multiplierValue.toFixed(2)}x`,
+            betAmount: this.formatAmount(betAmount),
+            profit: this.formatAmount(profitRaw),
+            profitValue,
+        };
+    }
+
+    private extractHistoryArray(raw: any): any[] {
+        if (Array.isArray(raw)) {
+            return raw;
+        }
+
+        const candidates = [
+            raw?.data?.items,
+            raw?.data?.records,
+            raw?.data?.history,
+            raw?.data?.list,
+            raw?.items,
+            raw?.records,
+            raw?.history,
+            raw?.list,
+            raw?.data,
+        ];
+        return candidates.find((candidate) => Array.isArray(candidate)) ?? [];
+    }
+
+    private pickFirst(source: any, keys: string[]): any {
+        for (const key of keys) {
+            const value = source?.[key];
+            if (value !== undefined && value !== null && value !== '') {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private formatDate(value: any): string {
+        if (value === null || value === undefined || value === '') {
+            return '-';
+        }
+
+        const dateValue = typeof value === 'number'
+            ? new Date(value < 1000000000000 ? value * 1000 : value)
+            : new Date(value);
+        if (Number.isNaN(dateValue.getTime())) {
+            return String(value);
+        }
+
+        const year = dateValue.getFullYear();
+        const month = this.pad2(dateValue.getMonth() + 1);
+        const day = this.pad2(dateValue.getDate());
+        const hour = this.pad2(dateValue.getHours());
+        const minute = this.pad2(dateValue.getMinutes());
+        const second = this.pad2(dateValue.getSeconds());
+        return `${year}/${month}/${day}  ${hour}:${minute}:${second}`;
+    }
+
+    private formatText(value: any): string {
+        if (value === null || value === undefined || value === '') {
+            return '-';
+        }
+        return String(value);
+    }
+
+    private formatAmount(value: any): string {
+        const numeric = this.toNumber(value);
+        if (numeric === null) {
+            return this.formatText(value);
+        }
+        if (Math.abs(numeric - Math.trunc(numeric)) < 0.000001) {
+            return String(Math.trunc(numeric));
+        }
+        return numeric.toFixed(2);
+    }
+
+    private toNumber(value: any): number | null {
+        const numeric = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+    }
+
+    private pad2(value: number): string {
+        return value < 10 ? `0${value}` : String(value);
+    }
+
     private onBackToLobbyClick() {
         if (!GameController.getInstance().canLeaveRoom()) {
             return;

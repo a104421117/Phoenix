@@ -1,6 +1,6 @@
 import { _decorator, Component, Label, Node, Tween, TweenEasing, UITransform, Vec3, sp, tween, warn } from 'cc';
 import { GameData, GmaeModel, RoundState } from '../Model/GameData';
-import { type CrashMultiplierCurvePointContract } from '../Model/WebSocketManager';
+import { type CrashMultiplierCurvePointContract } from '../Model/WebsocketManager';
 const { ccclass, property } = _decorator;
 
 type CurveSample = {

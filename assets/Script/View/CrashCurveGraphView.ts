@@ -1,7 +1,7 @@
 import { _decorator, Color, Component, Graphics, UITransform, Vec3, warn } from 'cc';
 import { GameData } from '../Model/GameData';
 import { GmaeModel, RoundState } from '../Model/GameData';
-import { type CrashMultiplierCurvePointContract } from '../Model/WebSocketManager';
+import { type CrashMultiplierCurvePointContract } from '../Model/WebsocketManager';
 const { ccclass, property } = _decorator;
 
 /** CurveSample 型別定義。 */

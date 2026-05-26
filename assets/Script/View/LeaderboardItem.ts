@@ -1,7 +1,7 @@
 import { _decorator, Component, Label, Node, Prefab, instantiate } from 'cc';
 import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
-import { type CrashLeaderboardItemContract } from '../Model/WebSocketManager';
+import { type CrashLeaderboardItemContract } from '../Model/WebsocketManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('LeaderboardItem')

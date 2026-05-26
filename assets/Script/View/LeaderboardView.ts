@@ -1,7 +1,7 @@
 import { _decorator, Component, Node, Prefab, instantiate } from 'cc';
 import { GameData } from '../Model/GameData';
 import { GmaeModel } from '../Model/GameData';
-import { type CrashLeaderboardItemContract } from '../Model/WebSocketManager';
+import { type CrashLeaderboardItemContract } from '../Model/WebsocketManager';
 import { LeaderboardItem } from './LeaderboardItem';
 const { ccclass, property } = _decorator;
 
