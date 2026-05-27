@@ -5,6 +5,9 @@
     "version": "3.8.8"
   },
   "dependencies": {
-    "@juprojects/game-sdk": "file:./packages/game-sdk"
+    "@juprojects/game-sdk": "10.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
   }
 }

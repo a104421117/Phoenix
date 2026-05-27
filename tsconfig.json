@@ -5,9 +5,7 @@
   /* Add your custom configuration here. */
   "compilerOptions": {
     "strict": false,
-    "paths": {
-      "@juprojects/game-sdk": ["./packages/game-sdk/dist/index"]
-    }
+    "moduleResolution": "bundler"
   },
   "exclude": [
     "node_modules",

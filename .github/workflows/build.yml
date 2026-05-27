@@ -58,9 +58,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install Dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.JU_GITHUB_PACKAGES_TOKEN }}
         run: npm install
 
       - name: Resolve Cocos Creator executable path

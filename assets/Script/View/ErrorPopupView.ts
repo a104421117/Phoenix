@@ -49,10 +49,12 @@ export class ErrorPopupView extends BaseModel.ComponentSingleton {
         }
 
         GameData.getInstance().onGameState(GmaeModel.ShowError, this.onShowError, this);
+        GameData.getInstance().onGameState(GmaeModel.HideError, this.hide, this);
     }
 
     onDestroy() {
         GameData.getInstance().offGameState(GmaeModel.ShowError, this.onShowError, this);
+        GameData.getInstance().offGameState(GmaeModel.HideError, this.hide, this);
         if (this.confirmBtn) {
             this.confirmBtn.node.off(Button.EventType.CLICK, this.hide, this);
         }

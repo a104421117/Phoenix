@@ -5,12 +5,11 @@
  * client-facing contract used by WebSocketManager and GameController.
  */
 
-import { GameActionOpcodes, Opcodes } from '@juprojects/game-sdk';
+import { Opcodes } from '@juprojects/game-sdk';
 import type {
     BalanceResponse,
     CrashBetItemContract,
     CrashBetPayload,
-    CrashBetsPayload,
     CrashCashoutItemContract,
     CrashCashoutPayload,
     CrashHistoryDistributionItemContract,
@@ -20,14 +19,12 @@ import type {
     CrashLeaderboardItemContract,
     CrashMultiplierCurvePointContract,
     CrashReconnectPayload,
+    CrashRoundEndPayload,
     CrashRoundEndedPush,
-    CrashRoundHistoryContract,
     CrashRoundStartedPush,
     CrashRoundStatePush,
     CrashStatePayload,
     Disposable,
-    GameActionPayloadFor,
-    GameActionPayloadMap,
     GameActionRequest,
     GameActionResponse,
     GameInitMessage,
@@ -43,11 +40,24 @@ import type {
     WalletBalanceRequest,
 } from '@juprojects/game-sdk';
 
+export const GameActionOpcodes = {
+    CrashState: 'crash.state',
+    CrashReconnect: 'crash.reconnect',
+    CrashBet: 'crash.bet',
+    CrashCashout: 'crash.cashout',
+    CrashRoundHistory: 'crash.roundHistory',
+} as const;
+
+export const GamePushMethods = {
+    CrashRoundEnd: 'crash.roundEnd',
+    CrashLose: 'crash.lose',
+    CrashRefund: 'crash.refund',
+} as const;
+
 export type {
     BalanceResponse,
     CrashBetItemContract,
     CrashBetPayload,
-    CrashBetsPayload,
     CrashCashoutItemContract,
     CrashCashoutPayload,
     CrashHistoryDistributionItemContract,
@@ -57,8 +67,8 @@ export type {
     CrashLeaderboardItemContract,
     CrashMultiplierCurvePointContract,
     CrashReconnectPayload,
+    CrashRoundEndPayload,
     CrashRoundEndedPush,
-    CrashRoundHistoryContract,
     CrashRoundStartedPush,
     CrashRoundStatePush,
     CrashStatePayload,
@@ -75,6 +85,7 @@ export type {
     RoomSummary,
     WalletBalanceRequest,
 };
+export type CrashRoundHistoryContract = CrashHistoryPayload;
 
 export const OpcodesRoomRound = {
     State: 'room.round.state',
@@ -82,8 +93,26 @@ export const OpcodesRoomRound = {
     Ended: 'room.round.ended',
 } as const;
 
-export { GameActionOpcodes, Opcodes };
-export type { GameActionPayloadFor, GameActionPayloadMap, GameActionRequest, GameActionResponse };
+export { Opcodes };
+export type { GameActionRequest, GameActionResponse };
+
+export type GameActionPayloadMap = {
+    [GameActionOpcodes.CrashState]: CrashStatePayload;
+    [GameActionOpcodes.CrashBet]: CrashBetPayload;
+    [GameActionOpcodes.CrashCashout]: CrashCashoutPayload;
+    [GameActionOpcodes.CrashReconnect]: CrashReconnectPayload;
+    [GameActionOpcodes.CrashRoundHistory]: CrashHistoryPayload;
+};
+
+export type GameActionPayloadFor<M extends keyof GameActionPayloadMap> = GameActionPayloadMap[M];
+
+export type GamePushPayloadMap = {
+    [GamePushMethods.CrashRoundEnd]: CrashRoundEndPayload;
+    [GamePushMethods.CrashLose]: unknown;
+    [GamePushMethods.CrashRefund]: unknown;
+};
+
+export type GamePushPayloadFor<M extends keyof GamePushPayloadMap> = GamePushPayloadMap[M];
 
 export type CrashBetRequestItem = {
     betAmount: MoneyDecimal;
@@ -106,7 +135,6 @@ export type GameActionRequestPayloadMap = {
     [GameActionOpcodes.CrashCashout]: CrashCashoutRequestPayload;
     [GameActionOpcodes.CrashRoundHistory]: Record<string, never>;
     [GameActionOpcodes.CrashReconnect]: Record<string, never>;
-    [GameActionOpcodes.CrashBets]: Record<string, never>;
 };
 
 export type WsRequestMap = {
@@ -177,7 +205,3 @@ export function encodeCrashReconnect(): Record<string, never> {
     return {};
 }
 
-/** crash.bets 請求 payload（無參數）。 */
-export function encodeCrashBets(): Record<string, never> {
-    return {};
-}

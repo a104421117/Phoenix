@@ -1,7 +1,7 @@
 [
   {
     "__type__": "cc.Prefab",
-    "_name": "NumericStepper",
+    "_name": "BetLevelSelector",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_native": "",
@@ -13,7 +13,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "NumericStepper",
+    "_name": "BetLevelSelector",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_parent": null,
@@ -934,7 +934,7 @@
     "fileId": "bb8bbh7fNIwpNMbR9dFhKI"
   },
   {
-    "__type__": "fd350jejt5MAoVSouhe9L/B",
+    "__type__": "01084px/UFLC5GE8RcHm0qs",
     "_name": "",
     "_objFlags": 0,
     "__editorExtras__": {},

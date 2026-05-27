@@ -2,6 +2,7 @@ import { GameClient } from '@juprojects/game-sdk';
 import { BaseModel } from '../../Game.Client.Common/BaseModel';
 import {
     GameActionOpcodes,
+    GamePushMethods,
     Opcodes,
     OpcodesRoomRound,
 } from './WebsocketModel';
@@ -9,11 +10,11 @@ import type {
     BalanceResponse,
     CrashBetPayload,
     CrashBetRequestPayload,
-    CrashBetsPayload,
     CrashCashoutPayload,
     CrashCashoutRequestPayload,
     CrashHistoryPayload,
     CrashReconnectPayload,
+    CrashRoundEndPayload,
     CrashRoundEndedPush,
     CrashRoundStartedPush,
     CrashRoundStatePush,
@@ -23,6 +24,8 @@ import type {
     GameActionPayloadMap,
     GameActionRequestPayloadMap,
     GameActionResponse,
+    GamePushPayloadFor,
+    GamePushPayloadMap,
     GameInitMessage,
     GameInitResponse,
     JoinRoomMessage,
@@ -41,7 +44,6 @@ export type {
     CrashBetItemContract,
     CrashBetPayload,
     CrashBetRequestItem,
-    CrashBetsPayload,
     CrashCashoutItemContract,
     CrashCashoutPayload,
     CrashHistoryDistributionItemContract,
@@ -51,6 +53,7 @@ export type {
     CrashLeaderboardItemContract,
     CrashMultiplierCurvePointContract,
     CrashReconnectPayload,
+    CrashRoundEndPayload,
     CrashRoundEndedPush,
     CrashRoundHistoryContract,
     CrashRoundStartedPush,
@@ -84,6 +87,9 @@ export class WebSocketManager extends BaseModel.Singleton {
             token,
             reconnect: { enabled: true },
             requestTimeoutMs: 30000,
+            onProtocolError: (error) => {
+                console.error('[WebSocketManager] server error', error);
+            },
         });
         await client.connect();
         this.client = client;
@@ -163,14 +169,6 @@ export class WebSocketManager extends BaseModel.Singleton {
         }
     }
 
-    public async getCrashBets(instanceId: string, payload: Record<string, never>): Promise<CrashBetsPayload> {
-        try {
-            return await this.gameAction(GameActionOpcodes.CrashBets, instanceId, payload);
-        } catch (error) {
-            throw this.createRequestError(GameActionOpcodes.CrashBets, error);
-        }
-    }
-
     /* ===== Pushes ===== */
 
     public onRoomRoundState(handler: (data: CrashRoundStatePush) => void, target?: any): Disposable {
@@ -189,8 +187,16 @@ export class WebSocketManager extends BaseModel.Singleton {
         return this.onGameAction(GameActionOpcodes.CrashState, handler, target);
     }
 
-    public onCrashRoundHistory(handler: (payload: CrashHistoryPayload) => void, target?: any): Disposable {
-        return this.onGameAction(GameActionOpcodes.CrashRoundHistory, handler, target);
+    public onCrashRoundEnd(handler: (payload: CrashRoundEndPayload) => void, target?: any): Disposable {
+        return this.onGamePush(GamePushMethods.CrashRoundEnd, handler, target);
+    }
+
+    public onCrashLose(handler: (payload: unknown) => void, target?: any): Disposable {
+        return this.onGamePush(GamePushMethods.CrashLose, handler, target);
+    }
+
+    public onCrashRefund(handler: (payload: unknown) => void, target?: any): Disposable {
+        return this.onGamePush(GamePushMethods.CrashRefund, handler, target);
     }
 
     public async close(): Promise<void> {
@@ -221,6 +227,19 @@ export class WebSocketManager extends BaseModel.Singleton {
         return this.on(Opcodes.Game.Action, (data: GameActionResponse) => {
             if (data.method !== method) return;
             const payload = data.payload as GameActionPayloadFor<M>;
+            bound(payload);
+        });
+    }
+
+    private onGamePush<M extends keyof GamePushPayloadMap>(
+        method: M,
+        handler: (payload: GamePushPayloadFor<M>) => void,
+        target?: any,
+    ): Disposable {
+        const bound = target ? handler.bind(target) : handler;
+        return this.on(Opcodes.Game.Action, (data: GameActionResponse) => {
+            if (data.method !== method) return;
+            const payload = data.payload as GamePushPayloadFor<M>;
             bound(payload);
         });
     }

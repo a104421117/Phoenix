@@ -30,6 +30,7 @@ import {
     type CrashHistoryPayload,
     type CrashInitPayload,
     type CrashLeaderboardItemContract,
+    type CrashRoundEndPayload,
     type CrashRoundEndedPush,
     type CrashRoundHistoryContract,
     type CrashRoundStartedPush,
@@ -85,7 +86,7 @@ export class GameController extends BaseModel.Singleton {
         if (this.serverPushBound) return;
         const socket = WebSocketManager.getInstance();
         socket.onCrashState(this.applyRoundStateByEnum, this);
-        socket.onCrashRoundHistory((payload) => this.handleRoundHistory(payload, 'push'), this);
+        socket.onCrashRoundEnd(this.onCrashRoundEndPush, this);
         socket.onRoomRoundState(this.onRoomRoundStatePush, this);
         socket.onRoomRoundStarted(this.onRoomRoundStartedPush, this);
         socket.onRoomRoundEnded(this.onRoomRoundEndedPush, this);
@@ -146,6 +147,19 @@ export class GameController extends BaseModel.Singleton {
         this.handleSettled();
     }
 
+    private onCrashRoundEndPush(payload: CrashRoundEndPayload) {
+        this.applyCurrencyScale(payload.currencyScale);
+        this.handleCrashed(payload.crashPoint, 0);
+        this.handleRoundHistory(payload, 'push');
+        this.handleCashout({
+            cashouts: payload.cashouts ?? [],
+            totalPayout: payload.totalPayout,
+            balance: payload.balance,
+            currencyScale: payload.currencyScale,
+        });
+        this.handleLostBets(payload.losts);
+    }
+
     /* ===== State change handlers ===== */
 
     private handleBetting(bettingCountdown: number) {
@@ -155,7 +169,7 @@ export class GameController extends BaseModel.Singleton {
             this.updateExistingBets([]);
         }
         this.pendingBetUnits = 0;
-        gameData.RoundState = RoundState.Betting;
+        this.updateRoundState(RoundState.Betting);
         this.updateRunningElapsed(0);
         this.updateMultiplier(1);
         GameData.getInstance().emitGameState(GmaeModel.BettingCountdown, bettingCountdown);
@@ -166,7 +180,7 @@ export class GameController extends BaseModel.Singleton {
     private handleRunning(currentMultiplier: number | string, runningElapsed?: number) {
         const gameData = GameData.getInstance();
         if (gameData.RoundState === RoundState.Settled) return;
-        gameData.RoundState = RoundState.Running;
+        this.updateRoundState(RoundState.Running);
         const elapsed = Number(runningElapsed);
         if (Number.isFinite(elapsed)) {
             this.updateRunningElapsed(Math.max(0, elapsed));
@@ -179,7 +193,7 @@ export class GameController extends BaseModel.Singleton {
         const normalizedCrashPoint = Number(crashPoint);
         if (!Number.isFinite(normalizedCrashPoint) || normalizedCrashPoint <= 0) return;
         if (gameData.RoundState === RoundState.Settled) return;
-        gameData.RoundState = RoundState.Crashed;
+        this.updateRoundState(RoundState.Crashed);
         const elapsed = Number(runningElapsed);
         if (Number.isFinite(elapsed)) {
             this.updateRunningElapsed(Math.max(0, elapsed));
@@ -196,7 +210,7 @@ export class GameController extends BaseModel.Singleton {
 
     private handleSettled() {
         this.pendingBetUnits = 0;
-        GameData.getInstance().RoundState = RoundState.Settled;
+        this.updateRoundState(RoundState.Settled);
         this.updateMultiplier(1);
         this.updateLeaderboard([]);
         GameData.getInstance().emitGameState(GmaeModel.Settled);
@@ -218,6 +232,8 @@ export class GameController extends BaseModel.Singleton {
     }
 
     private handleCashout(payload: CrashCashoutPayload) {
+        this.applyCurrencyScale(payload.currencyScale);
+        this.emitCashoutTotalPayout(payload.totalPayout);
         if (payload.cashouts.length <= 0) {
             this.syncBalance(payload.balance);
             return;
@@ -236,8 +252,30 @@ export class GameController extends BaseModel.Singleton {
         this.syncBalance(payload.balance);
     }
 
+    private handleLostBets(losts: number[] | null | undefined) {
+        if (!Array.isArray(losts) || losts.length <= 0) return;
+        const gameData = GameData.getInstance();
+        const lostIndexes = [...new Set(losts
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value >= 0))];
+
+        lostIndexes.forEach((betIndex) => {
+            const bet = gameData.ExistingBets.find((item) => item.betIndex === betIndex);
+            if (!bet || bet.status === ExistingBetStatus.CashedOut || bet.cashoutMultiplier !== null) return;
+            this.upsertExistingBet({
+                betIndex,
+                betAmount: bet.betAmount,
+                status: ExistingBetStatus.Lost,
+                cashoutMultiplier: null,
+                payoutGross: null,
+                payoutNet: null,
+                currentProfit: null,
+            });
+        });
+    }
+
     private handleRoundHistory(
-        payload: CrashHistoryPayload | CrashRoundHistoryContract | number[] | null | undefined,
+        payload: CrashHistoryPayload | CrashRoundHistoryContract | CrashRoundEndPayload | number[] | null | undefined,
         source: RoundHistoryUpdateSource = 'sync',
     ) {
         const gameData = GameData.getInstance();
@@ -473,7 +511,7 @@ export class GameController extends BaseModel.Singleton {
         gameData.TodayMaxCrashPoint = null;
         gameData.Multiplier = 1;
         gameData.RunningElapsed = 0;
-        gameData.RoundState = RoundState.None;
+        this.updateRoundState(RoundState.None);
         gameData.IsCrashed = false;
         gameData.MultiplierCurve = [];
         gameData.BetIndex = 0;
@@ -511,6 +549,11 @@ export class GameController extends BaseModel.Singleton {
     private updateLeaderboard(value: CrashLeaderboardItemContract[]) {
         GameData.getInstance().Leaderboard = value;
         GameData.getInstance().emitGameState(GmaeModel.Leaderboard, [...value]);
+    }
+
+    private updateRoundState(value: RoundState) {
+        GameData.getInstance().RoundState = value;
+        GameData.getInstance().emitGameState(GmaeModel.RoundStateChanged, value);
     }
 
     private updateBetLevels(value: number[]) {
@@ -701,6 +744,16 @@ export class GameController extends BaseModel.Singleton {
         this.updateWallet(nextBalance);
     }
 
+    private emitCashoutTotalPayout(totalPayout?: number | string | null) {
+        if (totalPayout === null || totalPayout === undefined) return;
+        const value = Number(totalPayout);
+        if (!Number.isFinite(value)) return;
+        GameData.getInstance().emitGameState(
+            GmaeModel.CashoutTotalPayout,
+            BaseModel.getPrecise(value, GameData.getInstance().CurrencyScale),
+        );
+    }
+
     private isSameRoundHistory(left: number[], right: number[]): boolean {
         if (left.length !== right.length) return false;
         for (let i = 0; i < left.length; i++) {
@@ -750,6 +803,12 @@ export class GameController extends BaseModel.Singleton {
     }
 
     private normalizeRoundHistoryDistribution(rawDistribution: any): CrashHistoryDistributionItemContract[] {
+        if (Array.isArray(rawDistribution) && rawDistribution.every((item) => Number.isFinite(Number(item)))) {
+            return rawDistribution.map((count, index) => ({
+                range: this.getDistributionRangeLabel(index),
+                count: Math.max(0, Math.floor(Number(count))),
+            }));
+        }
         if (!Array.isArray(rawDistribution)) return [];
         return rawDistribution
             .map((item) => ({
@@ -761,6 +820,11 @@ export class GameController extends BaseModel.Singleton {
                 range: item.range,
                 count: Math.max(0, Math.floor(item.count)),
             }));
+    }
+
+    private getDistributionRangeLabel(index: number): string {
+        const labels = ['0~1', '1.01~2', '2.01~5', '5.01~20', '20.01~'];
+        return labels[index] ?? `${index + 1}`;
     }
 
     private buildDefaultRoundHistoryDistribution(history: number[]): CrashHistoryDistributionItemContract[] {

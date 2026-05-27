@@ -8,9 +8,12 @@ import {
     Label,
     Node,
     ScrollView,
+    Sprite,
+    UITransform,
 } from 'cc';
 import { NodeSwitcher } from '../../Game.Client.Common/NodeSwitcher';
 import { GameController } from '../Controller/GameController';
+import { GameData, GmaeModel, RoundState } from '../Model/GameData';
 
 const { ccclass, property } = _decorator;
 
@@ -23,6 +26,7 @@ enum PopupIndex {
     AfkMultiplier = 5,
     CrashHistory = 6,
     Afk = 7,
+    RoundWait = 8,
 }
 
 type ButtonBinding = {
@@ -42,8 +46,11 @@ type ReplayHistoryRow = {
 @ccclass('GamePopupController')
 export class GamePopupController extends Component {
     private static readonly REPLAY_HISTORY_URL = 'https://dev-replay.jutechs.com/replay/history?gameCode=phoenix&limit=100';
+    private static readonly REPLAY_HISTORY_TOKEN = 'phoenix-test-e15bcb2770924204b8fc643b99af560d';
     private static readonly PROFIT_COLOR = new Color(245, 213, 98, 255);
     private static readonly LOSS_COLOR = new Color(196, 91, 88, 255);
+    private static readonly ROW_DARK_COLOR = new Color(63, 33, 17, 178);
+    private static readonly ROW_LIGHT_COLOR = new Color(108, 61, 36, 178);
 
     @property({ type: NodeSwitcher })
     private popupsSwitcher: NodeSwitcher = null;
@@ -96,6 +103,8 @@ export class GamePopupController extends Component {
 
     start() {
         this.initialize();
+        this.openPopup(PopupIndex.RoundWait);
+        GameData.getInstance().onGameState(GmaeModel.RoundStateChanged, this.onRoundStateChanged, this);
     }
 
     protected onEnable(): void {
@@ -110,6 +119,13 @@ export class GamePopupController extends Component {
 
     protected onDestroy(): void {
         this.unbindAllButtons();
+        GameData.getInstance().offGameState(GmaeModel.RoundStateChanged, this.onRoundStateChanged, this);
+    }
+
+    private onRoundStateChanged(state: RoundState) {
+        if (state !== RoundState.Betting) return;
+        this.closeAll();
+        GameData.getInstance().offGameState(GmaeModel.RoundStateChanged, this.onRoundStateChanged, this);
     }
 
     public initialize() {
@@ -219,15 +235,10 @@ export class GamePopupController extends Component {
         this.setBetHistoryStatus('載入中...');
 
         try {
-            const token = GameController.getInstance().PlayerToken;
-            if (!token) {
-                throw new Error('[GamePopupController.loadBetHistory] missing player token');
-            }
-
             const response = await fetch(GamePopupController.REPLAY_HISTORY_URL, {
                 method: 'GET',
                 headers: {
-                    'X-Player-Token': token,
+                    'X-Player-Token': GamePopupController.REPLAY_HISTORY_TOKEN,
                 },
             });
 
@@ -254,6 +265,9 @@ export class GamePopupController extends Component {
         if (!this.betHistoryRowTemplate) {
             throw new Error('[GamePopupController] betHistoryRowTemplate is not assigned');
         }
+        if (this.betHistoryScrollView) {
+            this.betHistoryScrollView.content = this.betHistoryRowsContent;
+        }
         this.betHistoryRowTemplate.active = false;
     }
 
@@ -277,16 +291,40 @@ export class GamePopupController extends Component {
     }
 
     private renderBetHistoryRows(rows: ReplayHistoryRow[]) {
-        rows.forEach((row) => {
+        const rowHeight = this.getBetHistoryRowHeight();
+        const contentTransform = this.betHistoryRowsContent.getComponent(UITransform);
+        if (contentTransform) {
+            const contentSize = contentTransform.contentSize;
+            contentTransform.setContentSize(contentSize.width, Math.max(contentSize.height, rows.length * rowHeight));
+        }
+
+        rows.forEach((row, index) => {
             const rowNode = instantiate(this.betHistoryRowTemplate);
             rowNode.parent = this.betHistoryRowsContent;
+            rowNode.setPosition(
+                this.betHistoryRowTemplate.position.x,
+                -index * rowHeight - rowHeight / 2,
+                this.betHistoryRowTemplate.position.z,
+            );
             rowNode.active = true;
-            this.applyBetHistoryRow(rowNode, row);
+            this.applyBetHistoryRow(rowNode, row, index);
         });
         this.betHistoryScrollView?.scrollToTop(0);
     }
 
-    private applyBetHistoryRow(rowNode: Node, row: ReplayHistoryRow) {
+    private getBetHistoryRowHeight(): number {
+        const transform = this.betHistoryRowTemplate.getComponent(UITransform);
+        const height = transform?.contentSize?.height ?? 0;
+        return height > 0 ? height : 60;
+    }
+
+    private applyBetHistoryRow(rowNode: Node, row: ReplayHistoryRow, index: number) {
+        const rowBackground = this.findChildByNames(rowNode, ['rowBackground', 'RowBackground'])?.getComponent(Sprite);
+        if (rowBackground) {
+            rowBackground.color = index % 2 === 0
+                ? GamePopupController.ROW_LIGHT_COLOR
+                : GamePopupController.ROW_DARK_COLOR;
+        }
         this.setRowLabel(rowNode, ['timeOrderLabel', 'TimeOrderLabel', 'timeLabel', 'TimeLabel'], `${row.time}\n${row.orderNo}`);
         const multiplierLabel = this.setRowLabel(rowNode, [
             'cashoutMultiplierLabel',
@@ -349,6 +387,7 @@ export class GamePopupController extends Component {
         }
 
         const time = this.formatDate(this.pickFirst(item, [
+            'sortTimeUtc',
             'createdAt',
             'createdTime',
             'betTime',
@@ -358,6 +397,7 @@ export class GamePopupController extends Component {
             'created_at',
         ]));
         const orderNo = this.formatText(this.pickFirst(item, [
+            'participantId',
             'orderNo',
             'orderId',
             'betOrderNo',

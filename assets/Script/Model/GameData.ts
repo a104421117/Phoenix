@@ -30,6 +30,8 @@ export enum GmaeModel {
     Rooms = 'Rooms',
     RoomJoined = 'RoomJoined',
     ShowError = 'ShowError',
+    HideError = 'HideError',
+    RoundStateChanged = 'RoundStateChanged',
 }
 
 export enum GameErrorPrompt {
@@ -37,7 +39,7 @@ export enum GameErrorPrompt {
     InsufficientBalanceWithPeriod = '餘額不足。',
     MaxBetCountReached = '已達本局投注次數上限',
     IdleKicked = '閒置時間過長，請重新進入遊戲',
-    RoundRunningWait = '本局已開始，請等待下一局',
+    RoundRunningWait = '遊戲進行中，請等候該局遊戲結束',
     NetworkReconnecting = '網路連線異常，重新連線中...',
     RoomBetLimitReached = '房間投注已達上限',
     LeaveWithActiveBet = '目前有未結算投注，無法離開房間',
@@ -75,6 +77,7 @@ export type ExistingBet = {
 
 export type GmaeModelMap = {
     [GmaeModel.ShowError]: { message: string };
+    [GmaeModel.RoundStateChanged]: RoundState;
 };
 
 type TypedGameState = keyof GmaeModelMap;
